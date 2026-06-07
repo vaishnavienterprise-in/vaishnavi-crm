@@ -1,0 +1,192 @@
+{
+  "entities": {
+    "lead": {
+      "title": "Lead",
+      "description": "Represents a sales lead for Vaishnavi Enterprise",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerName": { "type": "string" },
+        "companyName": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "email": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "industry": { "type": "string" },
+        "requirement": { "type": "string" },
+        "leadSource": { "type": "string" },
+        "status": { "type": "string" },
+        "priority": { "type": "string" },
+        "assignedDate": { "type": "string" },
+        "dayAssignment": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "updatedAt": { "type": "object" },
+        "lastCalledAt": { "type": "object" },
+        "lastWhatsAppSentAt": { "type": "object" },
+        "lastEmailSentAt": { "type": "object" },
+        "profileSentAt": { "type": "object" },
+        "profileSentMethod": { "type": "string" },
+        "nextAction": { "type": "string" },
+        "nextActionDate": { "type": "string" },
+        "nextActionTime": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["customerName", "companyName", "status", "priority", "dayAssignment", "ownerId", "createdAt", "updatedAt"]
+    },
+    "followup": {
+      "title": "Follow Up",
+      "description": "Follow up record for a lead",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "priority": { "type": "string" },
+        "notes": { "type": "string" },
+        "actionType": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["leadId", "date", "actionType", "ownerId", "createdAt"]
+    },
+    "note": {
+      "title": "Note",
+      "description": "A progress note on a lead",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "note": { "type": "string" },
+        "user": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["leadId", "note", "user", "ownerId", "createdAt"]
+    },
+    "call": {
+      "title": "Call Log",
+      "description": "A call log for a lead",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "date": { "type": "object" },
+        "notes": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["leadId", "date", "notes", "ownerId"]
+    },
+    "whatsapp_history": {
+      "title": "WhatsApp Contact",
+      "description": "A record of WhatsApp contact",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "date": { "type": "object" },
+        "template": { "type": "string" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["leadId", "date", "ownerId"]
+    },
+    "quotation": {
+      "title": "Quotation",
+      "description": "A professional quotation generated for a lead/company",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "leadId": { "type": "string" },
+        "customerName": { "type": "string" },
+        "companyName": { "type": "string" },
+        "product": { "type": "string" },
+        "size": { "type": "string" },
+        "quantity": { "type": "number" },
+        "rate": { "type": "number" },
+        "gst": { "type": "number" },
+        "total": { "type": "number" },
+        "remarks": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "ownerId": { "type": "string" },
+        "quotationNumber": { "type": "string" },
+        "products": { "type": "array" },
+        "subtotal": { "type": "number" },
+        "grandTotal": { "type": "number" }
+      },
+      "required": ["customerName", "companyName", "product", "quantity", "rate", "gst", "total", "ownerId", "createdAt"]
+    },
+    "task": {
+      "title": "Task",
+      "description": "A general or lead-specific follow-up task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "dueDate": { "type": "string" },
+        "dueTime": { "type": "string" },
+        "priority": { "type": "string" },
+        "category": { "type": "string" },
+        "recurring": { "type": "string" },
+        "status": { "type": "string" },
+        "leadId": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["title", "dueDate", "priority", "status", "ownerId", "createdAt"]
+    },
+    "reminder": {
+      "title": "Reminder",
+      "description": "A reminder for important lead events or outreach schedules",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "leadId": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "ownerId": { "type": "string" }
+      },
+      "required": ["title", "date", "time", "ownerId", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/leads/{leadId}": {
+      "schema": "lead",
+      "description": "Enterprise leads"
+    },
+    "/leads/{leadId}/followups/{followupId}": {
+      "schema": "followup",
+      "description": "Followups for a lead"
+    },
+    "/leads/{leadId}/notes/{noteId}": {
+      "schema": "note",
+      "description": "Notes for a lead"
+    },
+    "/leads/{leadId}/calls/{callId}": {
+      "schema": "call",
+      "description": "Call history logs"
+    },
+    "/leads/{leadId}/whatsapp_history/{whatsappId}": {
+      "schema": "whatsapp_history",
+      "description": "WhatsApp outbound history"
+    },
+    "/quotations/{quotationId}": {
+      "schema": "quotation",
+      "description": "Quotations history"
+    },
+    "/tasks/{taskId}": {
+      "schema": "task",
+      "description": "Enterprise tasks list"
+    },
+    "/reminders/{reminderId}": {
+      "schema": "reminder",
+      "description": "Enterprise reminders timeline"
+    }
+  }
+}

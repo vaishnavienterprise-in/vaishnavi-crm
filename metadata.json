@@ -1,0 +1,6 @@
+{
+  "name": "Vaishnavi Enterprise Sales CRM",
+  "description": "Production-ready CRM, Sales Management System, Follow-Up Manager, and Quotation Generator for Vaishnavi Enterprise.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

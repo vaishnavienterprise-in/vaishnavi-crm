@@ -1,0 +1,176 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Domain Gate: Strict user domain control
+    function isAuthorizedUser() {
+      return isSignedIn() &&
+             request.auth.token.email == "vaishnavienterprise.print@gmail.com" &&
+             request.auth.token.email_verified == true;
+    }
+
+    // Schema Validation Helpers
+    function isValidLead(data) {
+      return data.customerName is string && data.customerName.size() <= 200 &&
+             data.companyName is string && data.companyName.size() <= 200 &&
+             data.phone is string && data.phone.size() <= 50 &&
+             data.whatsapp is string && data.whatsapp.size() <= 50 &&
+             data.email is string && data.email.size() <= 100 &&
+             data.city is string && data.city.size() <= 100 &&
+             data.state is string && data.state.size() <= 100 &&
+             data.industry is string && data.industry.size() <= 100 &&
+             data.requirement is string && data.requirement.size() <= 2000 &&
+             data.leadSource is string && data.leadSource.size() <= 100 &&
+             data.status is string && data.status.size() <= 50 &&
+             data.priority is string && data.priority.size() <= 50 &&
+             data.dayAssignment is string && data.dayAssignment.size() <= 50 &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidFollowup(data) {
+      return data.leadId is string && data.leadId.size() <= 100 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.time is string && data.time.size() <= 20 &&
+             data.priority is string && data.priority.size() <= 20 &&
+             data.notes is string && data.notes.size() <= 2000 &&
+             data.actionType is string && data.actionType.size() <= 50 &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidNote(data) {
+      return data.leadId is string && data.leadId.size() <= 100 &&
+             data.date is string && data.date.size() <= 20 &&
+             data.time is string && data.time.size() <= 20 &&
+             data.note is string && data.note.size() <= 2000 &&
+             data.user is string && data.user.size() <= 100 &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidQuotation(data) {
+      return data.customerName is string && data.customerName.size() <= 250 &&
+             data.companyName is string && data.companyName.size() <= 250 &&
+             data.product is string && data.product.size() <= 200 &&
+             data.size is string && data.size.size() <= 100 &&
+             data.quantity is number && data.quantity >= 0 &&
+             data.rate is number && data.rate >= 0 &&
+             data.gst is number && data.gst >= 0 &&
+             data.total is number && data.total >= 0 &&
+             (data.get('quotationNumber', '') is string && data.get('quotationNumber', '').size() <= 50) &&
+             (data.get('subtotal', 0) is number && data.get('subtotal', 0) >= 0) &&
+             (data.get('grandTotal', 0) is number && data.get('grandTotal', 0) >= 0) &&
+             (data.get('products', []) is list) &&
+             data.remarks is string && data.remarks.size() <= 3500 &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidTask(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 3000 &&
+             data.dueDate is string && data.dueDate.size() <= 30 &&
+             data.priority is string && data.priority.size() <= 30 &&
+             data.status is string && data.status.size() <= 50 &&
+             data.get('dueTime', '') is string && data.get('dueTime', '').size() <= 30 &&
+             data.get('category', '') is string && data.get('category', '').size() <= 50 &&
+             data.get('recurring', '') is string && data.get('recurring', '').size() <= 50 &&
+             data.ownerId == request.auth.uid;
+    }
+
+    function isValidReminder(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.date is string && data.date.size() <= 30 &&
+             data.time is string && data.time.size() <= 30 &&
+             data.notes is string && data.notes.size() <= 3000 &&
+             data.ownerId == request.auth.uid;
+    }
+
+    // Lead rules
+    match /leads/{leadId} {
+      allow get, list: if isAuthorizedUser();
+      allow create: if isAuthorizedUser() && isValidId(leadId) && isValidLead(incoming()) && incoming().createdAt == request.time && incoming().updatedAt == request.time;
+      allow update: if isAuthorizedUser() && isValidLead(incoming()) && incoming().updatedAt == request.time && incoming().createdAt == existing().createdAt && incoming().ownerId == existing().ownerId;
+      allow delete: if isAuthorizedUser();
+
+      // Subcollections
+      match /followups/{followupId} {
+        allow get, list: if isAuthorizedUser();
+        allow create: if isAuthorizedUser() && isValidId(followupId) && isValidFollowup(incoming()) && incoming().createdAt == request.time;
+        allow update: if isAuthorizedUser() && isValidFollowup(incoming()) && incoming().ownerId == existing().ownerId;
+        allow delete: if isAuthorizedUser();
+      }
+
+      match /notes/{noteId} {
+        allow get, list: if isAuthorizedUser();
+        allow create: if isAuthorizedUser() && isValidId(noteId) && isValidNote(incoming()) && incoming().createdAt == request.time;
+        allow update: if isAuthorizedUser() && isValidNote(incoming()) && incoming().ownerId == existing().ownerId;
+        allow delete: if isAuthorizedUser();
+      }
+
+      match /calls/{callId} {
+        allow get, list: if isAuthorizedUser();
+        allow create: if isAuthorizedUser() && isValidId(callId) && incoming().ownerId == request.auth.uid;
+        allow update: if isAuthorizedUser() && incoming().ownerId == existing().ownerId;
+        allow delete: if isAuthorizedUser();
+      }
+
+      match /whatsapp_history/{whatsappId} {
+        allow get, list: if isAuthorizedUser();
+        allow create: if isAuthorizedUser() && isValidId(whatsappId) && incoming().ownerId == request.auth.uid;
+        allow update: if isAuthorizedUser() && incoming().ownerId == existing().ownerId;
+        allow delete: if isAuthorizedUser();
+      }
+    }
+
+    // Quotation rules
+    match /quotations/{quotationId} {
+      allow get, list: if isAuthorizedUser();
+      allow create: if isAuthorizedUser() && isValidId(quotationId) && isValidQuotation(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAuthorizedUser() && isValidQuotation(incoming()) && incoming().createdAt == existing().createdAt && incoming().ownerId == existing().ownerId;
+      allow delete: if isAuthorizedUser();
+    }
+
+    // Task rules
+    match /tasks/{taskId} {
+      allow get, list: if isAuthorizedUser();
+      allow create: if isAuthorizedUser() && isValidId(taskId) && isValidTask(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAuthorizedUser() && isValidTask(incoming()) && incoming().createdAt == existing().createdAt && incoming().ownerId == existing().ownerId;
+      allow delete: if isAuthorizedUser();
+    }
+
+    // Reminder rules
+    match /reminders/{reminderId} {
+      allow get, list: if isAuthorizedUser();
+      allow create: if isAuthorizedUser() && isValidId(reminderId) && isValidReminder(incoming()) && incoming().createdAt == request.time;
+      allow update: if isAuthorizedUser() && isValidReminder(incoming()) && incoming().createdAt == existing().createdAt && incoming().ownerId == existing().ownerId;
+      allow delete: if isAuthorizedUser();
+    }
+
+    // Settings / Counters rules
+    match /settings/{settingId} {
+      allow get, list: if isAuthorizedUser();
+      allow create, update: if isAuthorizedUser() && isValidId(settingId);
+      allow delete: if isAuthorizedUser();
+    }
+  }
+}
