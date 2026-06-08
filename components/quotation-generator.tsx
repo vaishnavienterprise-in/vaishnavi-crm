@@ -5,6 +5,7 @@ import { Quotation, QuotationProduct } from '@/lib/types';
 import { jsPDF } from 'jspdf';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
+import QuotationDetailModal from './quotation-detail-modal';
 import {
   FileText,
   Plus,
@@ -13,6 +14,7 @@ import {
   Trash2,
   Check,
   FileBadge,
+  Edit2,
 } from 'lucide-react';
 
 const formatCurrency = (val: number, decimals: number = 2) => {
@@ -56,13 +58,17 @@ interface QuotationGeneratorProps {
   quotations: Quotation[];
   onCreateQuotation: (quoteData: Partial<Quotation>) => Promise<void>;
   onDeleteQuotation: (id: string) => Promise<void>;
+  onUpdateQuotation?: (id: string, updatedData: Partial<Quotation>) => Promise<void>;
 }
 
 export default function QuotationGenerator({
   quotations,
   onCreateQuotation,
   onDeleteQuotation,
+  onUpdateQuotation,
 }: QuotationGeneratorProps) {
+  const [editingQuotationId, setEditingQuotationId] = useState<string | null>(null);
+  const [selectedQuotationForView, setSelectedQuotationForView] = useState<Quotation | null>(null);
   const [formData, setFormData] = useState<Partial<Quotation>>({
     customerName: '',
     companyName: '',
@@ -579,6 +585,24 @@ export default function QuotationGenerator({
     }
   };
 
+  const handleEditQuotation = (q: Quotation) => {
+    setFormData({
+      customerName: q.customerName,
+      companyName: q.companyName,
+      subject: q.subject || 'Quotation for Premium Self-Adhesive Labels',
+      gst: q.gst || 18,
+      remarks: q.remarks || 'Waterproof adhesive, core size 3 inches, standard winding.',
+      products: getProductsForQuotation(q),
+    });
+    setEditingQuotationId(q.id);
+    
+    // Smooth scroll to formulation view
+    const formulationSection = document.getElementById('quotations-billing-center');
+    if (formulationSection) {
+      formulationSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerName || !formData.companyName) {
@@ -594,38 +618,63 @@ export default function QuotationGenerator({
     setSaving(true);
     setErrorMess(null);
     try {
-      // 1. Get the next dynamic quotation number sequential counter
-      const nextNum = await getNextQuotationNumber();
-      const quoteNoStr = `VE-${String(nextNum).padStart(4, '0')}`;
-
-      // 2. Map fields correctly
       const firstProduct = products[0];
       const totalQty = products.reduce((acc, p) => acc + (p.quantity || 0), 0);
+      let fullQuote: Partial<Quotation>;
 
-      const fullQuote: Partial<Quotation> = {
-        ...formData,
-        quotationNumber: quoteNoStr,
-        products: products,
-        subtotal: subTotal,
-        gst: formData.gst || 18,
-        grandTotal: grandTotal,
+      if (editingQuotationId) {
+        const existingQuote = quotations.find(q => q.id === editingQuotationId);
+        const quoteNoStr = existingQuote?.quotationNumber || 'VE-UPD';
+
+        fullQuote = {
+          ...formData,
+          id: editingQuotationId,
+          quotationNumber: quoteNoStr,
+          products: products,
+          subtotal: subTotal,
+          gst: formData.gst || 18,
+          grandTotal: grandTotal,
+          
+          product: firstProduct.labelName,
+          size: firstProduct.size || '-',
+          quantity: totalQty,
+          rate: firstProduct.rate || 0,
+          total: grandTotal,
+        };
+
+        if (onUpdateQuotation) {
+          await onUpdateQuotation(editingQuotationId, fullQuote);
+        }
+        setEditingQuotationId(null);
+      } else {
+        // 1. Get the next dynamic quotation number sequential counter
+        const nextNum = await getNextQuotationNumber();
+        const quoteNoStr = `VE-${String(nextNum).padStart(4, '0')}`;
+
+        fullQuote = {
+          ...formData,
+          quotationNumber: quoteNoStr,
+          products: products,
+          subtotal: subTotal,
+          gst: formData.gst || 18,
+          grandTotal: grandTotal,
+          
+          product: firstProduct.labelName,
+          size: firstProduct.size || '-',
+          quantity: totalQty,
+          rate: firstProduct.rate || 0,
+          total: grandTotal,
+        };
+
+        await onCreateQuotation(fullQuote);
         
-        // Root fallbacks to keep backwards-compatibility in reports and listings
-        product: firstProduct.labelName,
-        size: firstProduct.size || '-',
-        quantity: totalQty,
-        rate: firstProduct.rate || 0,
-        total: grandTotal,
-      };
-
-      await onCreateQuotation(fullQuote);
-      
-      // Update settings quotation_counter back in Firestore
-      try {
-        const counterDocRef = doc(db, 'settings', 'quotation_counter');
-        await setDoc(counterDocRef, { lastNumber: nextNum });
-      } catch (countErr) {
-        console.error("Non-blocking setting write error:", countErr);
+        // Update settings quotation_counter back in Firestore
+        try {
+          const counterDocRef = doc(db, 'settings', 'quotation_counter');
+          await setDoc(counterDocRef, { lastNumber: nextNum });
+        } catch (countErr) {
+          console.error("Non-blocking setting write error:", countErr);
+        }
       }
 
       // Auto trigger immediate browser download
@@ -665,8 +714,47 @@ export default function QuotationGenerator({
           <span className="p-1.5 rounded-lg bg-green-50 text-[#092E20]">
             <FileBadge className="w-5 h-5" />
           </span>
-          <h2 className="text-lg font-bold text-gray-800 font-display">New Premium Quotation</h2>
+          <h2 className="text-lg font-bold text-gray-800 font-display">
+            {editingQuotationId ? 'Edit Saved Quotation' : 'New Premium Quotation'}
+          </h2>
         </div>
+
+        {editingQuotationId && (
+          <div className="p-3 bg-amber-50 text-amber-900 text-xs rounded-lg border border-amber-200 flex items-center justify-between select-none animate-fade-in">
+            <div className="flex flex-col gap-0.5">
+              <span className="font-bold">Editing Mode Active</span>
+              <span className="text-[10px] font-mono font-medium">
+                No: {quotations.find(qt => qt.id === editingQuotationId)?.quotationNumber || 'VE-UPD'}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingQuotationId(null);
+                setFormData({
+                  customerName: '',
+                  companyName: '',
+                  subject: 'Quotation for Premium Self-Adhesive Labels',
+                  gst: 18,
+                  remarks: 'Waterproof adhesive, core size 3 inches, standard winding.',
+                  products: [
+                    {
+                      labelName: '',
+                      materialType: 'Chromo',
+                      size: '100mm x 50mm',
+                      quantity: 10000,
+                      rate: 0.45,
+                      amount: 4500,
+                    }
+                  ],
+                });
+              }}
+              className="py-1 px-2.5 bg-amber-200/60 hover:bg-amber-250 active:bg-amber-300 rounded font-bold text-[10px] text-amber-950 transition-colors cursor-pointer"
+            >
+              Discard Edit
+            </button>
+          </div>
+        )}
 
         {errorMess && (
           <div className="p-3 bg-red-50 text-red-700 text-xs rounded-lg border border-red-150 animate-pulse">
@@ -880,7 +968,7 @@ export default function QuotationGenerator({
             ) : (
               <>
                 <Check className="w-4 h-4 text-[#22C55E] stroke-[3px]" />
-                <span>Save & Generate Invoice PDF</span>
+                <span>{editingQuotationId ? 'Save & Update Quotation PDF' : 'Save & Generate Invoice PDF'}</span>
               </>
             )}
           </button>
@@ -921,14 +1009,18 @@ export default function QuotationGenerator({
                   const products = getProductsForQuotation(q);
 
                   return (
-                    <tr key={q.id} className="hover:bg-gray-50/70 transition-colors">
+                    <tr 
+                      key={q.id || ''} 
+                      className="hover:bg-gray-50/70 transition-colors cursor-pointer group"
+                      onClick={() => setSelectedQuotationForView(q)}
+                    >
                       <td className="p-3">
                         <div className="space-y-1">
-                          <div className="inline-block bg-green-50 hover:bg-green-100 text-[#092E20] font-mono font-bold text-[10px] px-1.5 py-0.5 rounded border border-green-200">
+                          <div className="inline-block bg-green-50 group-hover:bg-[#22C55E]/10 text-[#092E20] group-hover:text-emerald-700 font-mono font-bold text-[10px] px-1.5 py-0.5 rounded border border-green-200">
                             {q.quotationNumber || `VE-${q.id?.slice(0, 4).toUpperCase()}`}
                           </div>
                           <div>
-                            <p className="font-bold text-gray-800">{q.customerName}</p>
+                            <p className="font-bold text-gray-800 transition-colors group-hover:text-emerald-800">{q.customerName}</p>
                             <p className="text-[10px] text-gray-400 font-semibold">{q.companyName}</p>
                           </div>
                         </div>
@@ -955,17 +1047,24 @@ export default function QuotationGenerator({
                       <td className="p-3 font-mono font-bold text-emerald-800">
                         {formatCurrency(q.grandTotal || q.total || 0, 2)}
                       </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center gap-1.5">
+                      <td className="p-3" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap">
                           <button
-                            onClick={() => handleGeneratePDF(q)}
+                            onClick={(e) => { e.stopPropagation(); handleGeneratePDF(q); }}
                             className="p-1.5 bg-green-50 text-[#092E20] hover:bg-[#092E20] hover:text-white rounded-lg border border-[#22C55E]/15 transition-all cursor-pointer shadow-3xs"
                             title="Download PDF Invoice"
                           >
                             <Download className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => onDeleteQuotation(q.id)}
+                            onClick={(e) => { e.stopPropagation(); handleEditQuotation(q); }}
+                            className="p-1.5 bg-amber-55 text-amber-800 hover:bg-amber-600 hover:text-white rounded-lg border border-amber-200/40 transition-all cursor-pointer shadow-3xs"
+                            title="Edit Quotation"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDeleteQuotation(q.id); }}
                             className="p-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white rounded-lg transition-all cursor-pointer border border-red-200/10 shadow-3xs"
                             title="Delete historical log"
                           >
@@ -996,6 +1095,23 @@ export default function QuotationGenerator({
           </p>
         </div>
       </div>
+
+      {selectedQuotationForView && (
+        <QuotationDetailModal
+          isOpen={true}
+          onClose={() => setSelectedQuotationForView(null)}
+          quotation={selectedQuotationForView}
+          onEdit={(q) => {
+            // Trigger edit by setting and letting the state load
+            handleEditQuotation(q);
+            setSelectedQuotationForView(null);
+          }}
+          onDelete={async (id) => {
+            await onDeleteQuotation(id);
+            setSelectedQuotationForView(null);
+          }}
+        />
+      )}
     </div>
   );
 }

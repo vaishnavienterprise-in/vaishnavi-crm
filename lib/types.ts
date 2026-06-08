@@ -25,13 +25,28 @@ export type FollowUpActionType =
   | 'Quotation'
   | 'Reminder';
 
+export interface Contact {
+  name: string;
+  designation: string;
+  department: string;
+  mobile: string;
+  whatsapp: string;
+  email: string;
+  notes: string;
+}
+
 export interface Lead {
   id: string;
   customerName: string;
   companyName: string;
   phone: string;
+  phones?: string[];
   whatsapp: string;
   email: string;
+  emails?: string[];
+  contacts?: Contact[];
+  gstNumber?: string;
+  website?: string;
   city: string;
   state: string;
   industry: string;
@@ -53,6 +68,7 @@ export interface Lead {
   nextActionTime: string; // HH:MM
   ownerId: string;
   callCount?: number;
+  notes?: string;
 }
 
 export interface CRMTask {

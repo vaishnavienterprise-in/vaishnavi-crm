@@ -1,9 +1,10 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Lead, LeadStatus, LeadPriority, NextActionType } from '@/lib/types';
+import { Lead, LeadStatus, LeadPriority, NextActionType, Contact } from '@/lib/types';
 import { getTodayDateString } from '@/lib/date-utils';
-import { X, Check } from 'lucide-react';
+import { X, Check, Plus, Trash2, UserPlus, Phone, Briefcase, Mail, MessageSquare } from 'lucide-react';
 
 interface LeadFormModalProps {
   isOpen: boolean;
@@ -55,18 +56,47 @@ export default function LeadFormModal({ isOpen, onClose, onSave, lead }: LeadFor
     nextAction: 'Call',
     nextActionDate: getTodayDateString(),
     nextActionTime: '10:00',
+    notes: '',
   });
 
+  const [phonesArray, setPhonesArray] = useState<string[]>(['']);
+  const [emailsArray, setEmailsArray] = useState<string[]>(['']);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [newContact, setNewContact] = useState<Contact>({
+    name: '',
+    designation: '',
+    department: '',
+    mobile: '',
+    whatsapp: '',
+    email: '',
+    notes: '',
+  });
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
-    setTimeout(() => {
+    if (isOpen) {
       if (lead) {
         setFormData({
           ...lead,
           dayAssignment: lead.dayAssignment || 'Monday',
+          notes: lead.notes || '',
         });
+        setPhonesArray(
+          lead.phones && lead.phones.length > 0
+            ? [...lead.phones]
+            : lead.phone
+            ? [lead.phone]
+            : ['']
+        );
+        setEmailsArray(
+          lead.emails && lead.emails.length > 0
+            ? [...lead.emails]
+            : lead.email
+            ? [lead.email]
+            : ['']
+        );
+        setContacts(lead.contacts || []);
       } else {
         setFormData({
           customerName: '',
@@ -86,9 +116,15 @@ export default function LeadFormModal({ isOpen, onClose, onSave, lead }: LeadFor
           nextAction: 'Call',
           nextActionDate: getTodayDateString(),
           nextActionTime: '10:00',
+          notes: '',
+          gstNumber: '',
+          website: '',
         });
+        setPhonesArray(['']);
+        setEmailsArray(['']);
+        setContacts([]);
       }
-    }, 0);
+    }
   }, [lead, isOpen]);
 
   if (!isOpen) return null;
@@ -111,6 +147,46 @@ export default function LeadFormModal({ isOpen, onClose, onSave, lead }: LeadFor
     }));
   };
 
+  const handlePhoneChange = (index: number, val: string) => {
+    const updated = [...phonesArray];
+    updated[index] = val;
+    setPhonesArray(updated);
+  };
+
+  const addPhoneField = () => {
+    if (phonesArray.length < 4) {
+      setPhonesArray([...phonesArray, '']);
+    }
+  };
+
+  const removePhoneField = (index: number) => {
+    if (phonesArray.length > 1) {
+      setPhonesArray(phonesArray.filter((_, i) => i !== index));
+    } else {
+      setPhonesArray(['']);
+    }
+  };
+
+  const handleEmailChange = (index: number, val: string) => {
+    const updated = [...emailsArray];
+    updated[index] = val;
+    setEmailsArray(updated);
+  };
+
+  const addEmailField = () => {
+    if (emailsArray.length < 3) {
+      setEmailsArray([...emailsArray, '']);
+    }
+  };
+
+  const removeEmailField = (index: number) => {
+    if (emailsArray.length > 1) {
+      setEmailsArray(emailsArray.filter((_, i) => i !== index));
+    } else {
+      setEmailsArray(['']);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.customerName || !formData.companyName) {
@@ -119,8 +195,21 @@ export default function LeadFormModal({ isOpen, onClose, onSave, lead }: LeadFor
     }
     setSaving(true);
     setValidationError(null);
+
+    const finalPhones = phonesArray.map(p => p.trim()).filter(Boolean);
+    const finalEmails = emailsArray.map(em => em.trim()).filter(Boolean);
+
     try {
-      await onSave(formData);
+      const finalPayload = {
+        ...formData,
+        phones: finalPhones,
+        emails: finalEmails,
+        phone: finalPhones[0] || '',
+        email: finalEmails[0] || '',
+        whatsapp: formData.whatsapp || finalPhones[0] || '',
+        contacts: contacts,
+      };
+      await onSave(finalPayload);
       onClose();
     } catch (err: any) {
       console.error(err);
@@ -195,6 +284,32 @@ export default function LeadFormModal({ isOpen, onClose, onSave, lead }: LeadFor
               </div>
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-650 uppercase mb-1">GST Number</label>
+                <input
+                  type="text"
+                  name="gstNumber"
+                  value={formData.gstNumber || ''}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden font-mono text-gray-800"
+                  placeholder="e.g. 24AAAAB1111C1Z0"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-650 uppercase mb-1">Company Website</label>
+                <input
+                  type="text"
+                  name="website"
+                  value={formData.website || ''}
+                  onChange={handleChange}
+                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
+                  placeholder="e.g. www.vaishnavienterprise.com"
+                />
+              </div>
+            </div>
+
             {/* Quick Product Tagging */}
             <div>
               <label className="block text-xs font-bold text-gray-650 uppercase mb-1.5">Quick-Tag Label Product</label>
@@ -223,6 +338,18 @@ export default function LeadFormModal({ isOpen, onClose, onSave, lead }: LeadFor
                 placeholder="Details of roll dimensions, sheet format, colors, adhesive glue spec or sticker quantities..."
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-gray-650 uppercase mb-1 font-semibold text-[#092E20]">Lead Notes / Follow-up Chronology</label>
+              <textarea
+                name="notes"
+                value={formData.notes || ''}
+                onChange={handleChange}
+                rows={3}
+                className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
+                placeholder="Enter sales progression history, price bids, special terms, or client requirements..."
+              />
+            </div>
           </div>
 
           {/* Section B: Contact Channels */}
@@ -231,66 +358,308 @@ export default function LeadFormModal({ isOpen, onClose, onSave, lead }: LeadFor
               Contact Channels
             </h4>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-gray-650 uppercase mb-1">Phone Number</label>
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone || ''}
-                  onChange={handleChange}
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
-                  placeholder="e.g. +91 98765 43210"
-                />
+                <label className="block text-xs font-bold text-gray-650 uppercase mb-1.5 flex items-center justify-between">
+                  <span>Phone Numbers (Min 1, Max 4)</span>
+                  {phonesArray.length < 4 && (
+                    <button
+                      type="button"
+                      onClick={addPhoneField}
+                      className="text-[#22C55E] hover:text-[#1eba51] text-[10px] font-extrabold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3 stroke-[3px]" />
+                      <span>Add Another Phone</span>
+                    </button>
+                  )}
+                </label>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {phonesArray.map((ph, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-2.5 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                          PH {idx + 1} {idx === 0 && '(Primary)'}
+                        </span>
+                        <input
+                          type="tel"
+                          value={ph}
+                          onChange={(e) => handlePhoneChange(idx, e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 pl-24 pr-3 text-xs outline-hidden font-mono"
+                          placeholder="+91 XXXXX XXXXX"
+                          required={idx === 0}
+                        />
+                      </div>
+                      {phonesArray.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePhoneField(idx)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer"
+                          title="Remove phone"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-650 uppercase mb-1">WhatsApp Mobile</label>
-                <input
-                  type="tel"
-                  name="whatsapp"
-                  value={formData.whatsapp || ''}
-                  onChange={handleChange}
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
-                  placeholder="e.g. +91 98765 43210 (For templates)"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-gray-650 uppercase mb-1">Email Address</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={formData.email || ''}
-                  onChange={handleChange}
-                  className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
-                  placeholder="e.g. procurement@abcpharma.com"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-650 uppercase mb-1">City</label>
+                  <label className="block text-xs font-bold text-gray-650 uppercase mb-1">WhatsApp Mobile</label>
+                  <input
+                    type="tel"
+                    name="whatsapp"
+                    value={formData.whatsapp || ''}
+                    onChange={handleChange}
+                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden font-mono"
+                    placeholder="e.g. +91 98765 43210 (Defaults to PH 1)"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-650 uppercase mb-1">City</label>
+                    <input
+                      type="text"
+                      name="city"
+                      value={formData.city || ''}
+                      onChange={handleChange}
+                      className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
+                      placeholder="Ahmedabad"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-650 uppercase mb-1">State</label>
+                    <input
+                      type="text"
+                      name="state"
+                      value={formData.state || ''}
+                      onChange={handleChange}
+                      className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
+                      placeholder="Gujarat"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-650 uppercase mb-1.5 flex items-center justify-between">
+                  <span>Email Addresses (Max 3)</span>
+                  {emailsArray.length < 3 && (
+                    <button
+                      type="button"
+                      onClick={addEmailField}
+                      className="text-[#22C55E] hover:text-[#1eba51] text-[10px] font-extrabold flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3 stroke-[3px]" />
+                      <span>Add Another Email</span>
+                    </button>
+                  )}
+                </label>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {emailsArray.map((em, idx) => (
+                    <div key={idx} className="flex gap-2 items-center">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-2.5 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                          EM {idx + 1} {idx === 0 && '(Primary)'}
+                        </span>
+                        <input
+                          type="email"
+                          value={em}
+                          onChange={(e) => handleEmailChange(idx, e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 pl-24 pr-3 text-xs outline-hidden"
+                          placeholder="procurement@brand.com"
+                        />
+                      </div>
+                      {emailsArray.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeEmailField(idx)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg cursor-pointer"
+                          title="Remove email"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CUSTOMER CONTACT DIRECTORY */}
+          <div className="space-y-4 pt-2 border-t border-gray-100">
+            <h4 className="text-xs font-bold text-[#092E20] uppercase tracking-widest border-b border-gray-100 pb-1 flex items-center justify-between">
+              <span>B2B Contact Directory (Decision Makers)</span>
+              <span className="text-[10px] text-gray-400 normal-case font-medium">{contacts.length} added</span>
+            </h4>
+
+            {/* List of existing contacts */}
+            {contacts.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {contacts.map((c, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 border border-gray-200 rounded-xl relative hover:shadow-xs transition-shadow">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setContacts(contacts.filter((_, i) => i !== idx));
+                      }}
+                      className="absolute top-2.5 right-2.5 text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-1.5 rounded-lg transition-colors cursor-pointer"
+                      title="Delete Contact"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                        <UserPlus className="w-3.5 h-3.5 text-[#22C55E]" />
+                        <span>{c.name}</span>
+                      </p>
+                      {c.designation && (
+                        <p className="text-[10px] text-[#092E20] font-semibold bg-green-50 px-1.5 py-0.5 rounded-sm inline-block">
+                          {c.designation} {c.department ? `(${c.department})` : ''}
+                        </p>
+                      )}
+                      
+                      <div className="text-[10px] space-y-0.5 text-gray-600 font-mono pt-1">
+                        {c.mobile && (
+                          <p className="flex items-center gap-1">
+                            <span className="font-sans font-bold text-gray-400">Mob:</span> {c.mobile}
+                          </p>
+                        )}
+                        {c.whatsapp && (
+                          <p className="flex items-center gap-1">
+                            <span className="font-sans font-extrabold text-[#22C55E]">WA:</span> {c.whatsapp}
+                          </p>
+                        )}
+                        {c.email && (
+                          <p className="flex items-center gap-1">
+                            <span className="font-sans font-bold text-gray-400">Email:</span> {c.email}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {c.notes && (
+                        <p className="text-[10px] italic text-gray-450 border-t border-gray-200/50 pt-1 mt-1">
+                          Note: {c.notes}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">No decision-maker contacts added yet. Use the sub-form below to populate the directory.</p>
+            )}
+
+            {/* Sub-form to Add New B2B Contact */}
+            <div className="bg-gray-50/50 p-4 border border-gray-200/80 rounded-xl space-y-3">
+              <span className="text-[10px] font-extrabold text-[#092E20] uppercase tracking-wider block">Add New Decision Maker Contact</span>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[9.5px] font-bold text-gray-450 uppercase mb-0.5">Contact Name</label>
                   <input
                     type="text"
-                    name="city"
-                    value={formData.city || ''}
-                    onChange={handleChange}
-                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
-                    placeholder="Mumbai"
+                    value={newContact.name}
+                    onChange={(e) => setNewContact(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-xs outline-hidden"
+                    placeholder="e.g. Rajesh Patel"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-650 uppercase mb-1">State</label>
+                  <label className="block text-[9.5px] font-bold text-gray-450 uppercase mb-0.5">Designation</label>
                   <input
                     type="text"
-                    name="state"
-                    value={formData.state || ''}
-                    onChange={handleChange}
-                    className="w-full bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-lg py-2 px-3 text-xs outline-hidden"
-                    placeholder="Maharashtra"
+                    value={newContact.designation}
+                    onChange={(e) => setNewContact(prev => ({ ...prev, designation: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-xs outline-hidden"
+                    placeholder="e.g. Purchase Manager"
                   />
                 </div>
+                <div>
+                  <label className="block text-[9.5px] font-bold text-gray-450 uppercase mb-0.5">Department</label>
+                  <input
+                    type="text"
+                    value={newContact.department}
+                    onChange={(e) => setNewContact(prev => ({ ...prev, department: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-xs outline-hidden"
+                    placeholder="e.g. Procurement, Accounts"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[9.5px] font-bold text-gray-450 uppercase mb-0.5">Mobile Number</label>
+                  <input
+                    type="tel"
+                    value={newContact.mobile}
+                    onChange={(e) => setNewContact(prev => ({ ...prev, mobile: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-xs outline-hidden font-mono"
+                    placeholder="e.g. 98250 12345"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9.5px] font-bold text-gray-450 uppercase mb-0.5">WhatsApp Number</label>
+                  <input
+                    type="tel"
+                    value={newContact.whatsapp}
+                    onChange={(e) => setNewContact(prev => ({ ...prev, whatsapp: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-xs outline-hidden font-mono"
+                    placeholder="e.g. 98250 12345"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[9.5px] font-bold text-gray-450 uppercase mb-0.5">Email Address</label>
+                  <input
+                    type="email"
+                    value={newContact.email}
+                    onChange={(e) => setNewContact(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-xs outline-hidden"
+                    placeholder="e.g. rajesh@com.com"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[9.5px] font-bold text-gray-450 uppercase mb-0.5">Internal Contact Notes</label>
+                <input
+                  type="text"
+                  value={newContact.notes}
+                  onChange={(e) => setNewContact(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full bg-white border border-gray-200 rounded-lg py-1.5 px-2.5 text-xs outline-hidden"
+                  placeholder="e.g. Prefers morning calls, decides order volumes..."
+                />
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newContact.name) {
+                      alert('Please specify at least a Contact Name to register a decision maker.');
+                      return;
+                    }
+                    setContacts([...contacts, newContact]);
+                    setNewContact({
+                      name: '',
+                      designation: '',
+                      department: '',
+                      mobile: '',
+                      whatsapp: '',
+                      email: '',
+                      notes: '',
+                    });
+                  }}
+                  className="py-1.5 px-4 bg-green-50 text-[#092E20] hover:bg-green-150 border border-green-200/50 text-xs font-bold rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95 select-none"
+                >
+                  <Plus className="w-3.5 h-3.5 text-[#22C55E] stroke-[3px]" />
+                  <span>Add Decision Maker Contact</span>
+                </button>
               </div>
             </div>
           </div>

@@ -46,7 +46,14 @@ service cloud.firestore {
              data.status is string && data.status.size() <= 50 &&
              data.priority is string && data.priority.size() <= 50 &&
              data.dayAssignment is string && data.dayAssignment.size() <= 50 &&
-             data.ownerId == request.auth.uid;
+             data.ownerId == request.auth.uid &&
+             (!(data.get('gstNumber', null) != null) || (data.get('gstNumber', '') is string && data.get('gstNumber', '').size() <= 100)) &&
+             (!(data.get('website', null) != null) || (data.get('website', '') is string && data.get('website', '').size() <= 200)) &&
+             (!(data.get('phones', null) != null) || (data.get('phones', []) is list && data.get('phones', []).size() <= 20 && (data.get('phones', []).size() == 0 || data.get('phones', [])[0] is string))) &&
+             (!(data.get('emails', null) != null) || (data.get('emails', []) is list && data.get('emails', []).size() <= 20 && (data.get('emails', []).size() == 0 || data.get('emails', [])[0] is string))) &&
+             (!(data.get('contacts', null) != null) || (data.get('contacts', []) is list && data.get('contacts', []).size() <= 50 && (data.get('contacts', []).size() == 0 || data.get('contacts', [])[0] is map))) &&
+             (!(data.get('notes', null) != null) || (data.get('notes', '') is string && data.get('notes', '').size() <= 10000)) &&
+             (!(data.get('callCount', null) != null) || (data.get('callCount', 0) is number && data.get('callCount', 0) >= 0));
     }
 
     function isValidFollowup(data) {
@@ -77,10 +84,19 @@ service cloud.firestore {
              data.rate is number && data.rate >= 0 &&
              data.gst is number && data.gst >= 0 &&
              data.total is number && data.total >= 0 &&
-             (data.get('quotationNumber', '') is string && data.get('quotationNumber', '').size() <= 50) &&
-             (data.get('subtotal', 0) is number && data.get('subtotal', 0) >= 0) &&
-             (data.get('grandTotal', 0) is number && data.get('grandTotal', 0) >= 0) &&
-             (data.get('products', []) is list) &&
+             (!(data.get('quotationNumber', null) != null) || (data.get('quotationNumber', '') is string && data.get('quotationNumber', '').size() <= 100)) &&
+             (!(data.get('items', null) != null) || (data.get('items', []) is list && data.get('items', []).size() <= 100 && (data.get('items', []).size() == 0 || data.get('items', [])[0] is map))) &&
+             (!(data.get('products', null) != null) || (data.get('products', []) is list && data.get('products', []).size() <= 100 && (data.get('products', []).size() == 0 || data.get('products', [])[0] is map))) &&
+             (!(data.get('subject', null) != null) || (data.get('subject', '') is string && data.get('subject', '').size() <= 500)) &&
+             (!(data.get('subtotal', null) != null) || (data.get('subtotal', 0) is number && data.get('subtotal', 0) >= 0)) &&
+             (!(data.get('grandTotal', null) != null) || (data.get('grandTotal', 0) is number && data.get('grandTotal', 0) >= 0)) &&
+             (!(data.get('discountPct', null) != null) || (data.get('discountPct', 0) is number && data.get('discountPct', 0) >= 0 && data.get('discountPct', 0) <= 100)) &&
+             (!(data.get('freightCharges', null) != null) || (data.get('freightCharges', 0) is number && data.get('freightCharges', 0) >= 0)) &&
+             (!(data.get('bankDetails', null) != null) || (data.get('bankDetails', '') is string && data.get('bankDetails', '').size() <= 2000)) &&
+             (!(data.get('hsnCode', null) != null) || (data.get('hsnCode', '') is string && data.get('hsnCode', '').size() <= 50)) &&
+             (!(data.get('customerAddress', null) != null) || (data.get('customerAddress', '') is string && data.get('customerAddress', '').size() <= 1500)) &&
+             (!(data.get('deliveryAddress', null) != null) || (data.get('deliveryAddress', '') is string && data.get('deliveryAddress', '').size() <= 1500)) &&
+             (!(data.get('updatedAt', null) != null) || (data.get('updatedAt', request.time) == request.time)) &&
              data.remarks is string && data.remarks.size() <= 3500 &&
              data.ownerId == request.auth.uid;
     }

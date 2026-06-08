@@ -318,12 +318,28 @@ export default function Home() {
   };
 
   const handleDeleteQuotation = async (id: string) => {
-    if (!confirm('Are you sure you want to permanently delete this quotation log?')) return;
+    if (!confirm('Delete this quotation permanently?')) return;
     try {
       const quoteDocRef = doc(db, 'quotations', id);
       await deleteDoc(quoteDocRef);
     } catch (e) {
       handleFirestoreError(e, OperationType.DELETE, `quotations/${id}`);
+    }
+  };
+
+  const handleUpdateQuotation = async (id: string, updatedData: Partial<Quotation>) => {
+    if (!user) return;
+    try {
+      const quoteDocRef = doc(db, 'quotations', id);
+      const payload = {
+        ...updatedData,
+        updatedAt: serverTimestamp(),
+      };
+      // Keep payload sanitized from id key itself
+      delete (payload as any).id;
+      await updateDoc(quoteDocRef, payload);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `quotations/${id}`);
     }
   };
 
@@ -564,6 +580,7 @@ export default function Home() {
                   quotations={quotations}
                   onCreateQuotation={handleCreateQuotation}
                   onDeleteQuotation={handleDeleteQuotation}
+                  onUpdateQuotation={handleUpdateQuotation}
                 />
               )}
 
@@ -688,6 +705,7 @@ export default function Home() {
           onClose={() => setSelectedLead(null)}
           lead={selectedLead}
           onUpdateLead={handleUpdateLead}
+          onDeleteLead={handleDeleteLead}
         />
       )}
 
@@ -712,7 +730,7 @@ export default function Home() {
       />
 
       {/* STICKY BOTTOM NAVIGATION BAR FOR TOUCH DEVICES */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#092E20] border-t border-[#22C55E]/15 z-40 flex items-center justify-around px-2 pb-safe shadow-xl select-none">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white border-t border-gray-250 z-40 flex items-center justify-around px-2 pb-safe shadow-2xl select-none">
         {[
           { id: 'dashboard', label: 'DB', icon: LayoutDashboard },
           { id: 'leads', label: 'Leads', icon: Users },
@@ -726,13 +744,15 @@ export default function Home() {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}
-              className={`flex flex-col items-center justify-center gap-1 flex-1 py-1 px-1 transition-all cursor-pointer ${
-                active ? 'text-[#22C55E]' : 'text-green-150 hover:text-white'
+              className={`flex flex-col items-center justify-center gap-1.5 flex-1 py-1.5 px-1 transition-all cursor-pointer active:scale-95 ${
+                active ? 'text-[#22C55E]' : 'text-[#374151]'
               }`}
               id={`mob-nav-${item.id}`}
             >
-              <Icon className="w-5 h-5 stroke-[2.2px]" />
-              <span className="text-[9px] font-bold uppercase tracking-wider">{item.label}</span>
+              <Icon className={`w-5.5 h-5.5 transition-transform ${active ? 'stroke-[2.8px] scale-110' : 'stroke-[2.1px]'}`} />
+              <span className={`text-[11px] font-bold uppercase tracking-wider transition-colors duration-150`}>
+                {item.label}
+              </span>
             </button>
           );
         })}
