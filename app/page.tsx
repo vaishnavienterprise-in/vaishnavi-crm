@@ -64,6 +64,7 @@ export default function Home() {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [addLeadModalOpen, setAddLeadModalOpen] = useState(false);
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<CRMTask | null>(null);
 
   // Background alarm/notification polling for upcoming tasks & reminders
   useEffect(() => {
@@ -301,6 +302,34 @@ export default function Home() {
     }
   };
 
+  const handleQuickCall = async (lead: Lead) => {
+    if (!user) return;
+    const currentCount = lead.callCount || 0;
+    try {
+      // 1. Update general stats for this lead
+      await handleUpdateLead(lead.id, {
+        callCount: currentCount + 1,
+        lastCalledAt: serverTimestamp(),
+        lastCallDate: new Date().toISOString().split('T')[0],
+        status: 'Called Today',
+      });
+
+      // 2. Add an automatic phone dial note
+      const notesRef = collection(db, 'leads', lead.id, 'notes');
+      await addDoc(notesRef, {
+        leadId: lead.id,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toTimeString().slice(0, 5),
+        note: `📞 Call attempted from Quick Dialer. Incrementing call count to ${currentCount + 1}.`,
+        user: user?.displayName || user?.email || 'Authorized CRM User',
+        createdAt: serverTimestamp(),
+        ownerId: user?.uid,
+      });
+    } catch (e) {
+      handleFirestoreError(e, OperationType.WRITE, `leads/${lead.id}/notes`);
+    }
+  };
+
   // Quotation operations
   const handleCreateQuotation = async (quoteData: Partial<Quotation>) => {
     if (!user) return;
@@ -356,6 +385,21 @@ export default function Home() {
       await addDoc(colRef, payload);
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, 'tasks');
+    }
+  };
+
+  const handleUpdateTask = async (taskId: string, taskData: Partial<CRMTask>) => {
+    if (!user) return;
+    try {
+      const docRef = doc(db, 'tasks', taskId);
+      const payload = {
+        ...taskData,
+        updatedAt: serverTimestamp(),
+      };
+      delete (payload as any).id;
+      await updateDoc(docRef, payload);
+    } catch (e) {
+      handleFirestoreError(e, OperationType.UPDATE, `tasks/${taskId}`);
     }
   };
 
@@ -572,6 +616,7 @@ export default function Home() {
                   onOpenAddLeadModal={() => setAddLeadModalOpen(true)}
                   onUpdateLeadStatus={handleUpdateLeadStatus}
                   onDeleteLead={handleDeleteLead}
+                  onQuickCall={handleQuickCall}
                 />
               )}
 
@@ -591,7 +636,14 @@ export default function Home() {
                   onCreateTask={handleCreateTask}
                   onUpdateTaskStatus={handleUpdateTaskStatus}
                   onDeleteTask={handleDeleteTask}
-                  onOpenTaskModal={() => setIsTaskModalOpen(true)}
+                  onOpenTaskModal={() => {
+                    setEditingTask(null);
+                    setIsTaskModalOpen(true);
+                  }}
+                  onEditTask={(task) => {
+                    setEditingTask(task);
+                    setIsTaskModalOpen(true);
+                  }}
                 />
               )}
 
@@ -712,7 +764,10 @@ export default function Home() {
       {/* FLOATING QUICK ADD BUTTON (One tap to create task immediately) */}
       {user && (
         <button
-          onClick={() => setIsTaskModalOpen(true)}
+          onClick={() => {
+            setEditingTask(null);
+            setIsTaskModalOpen(true);
+          }}
           className="fixed bottom-20 md:bottom-8 right-6 z-40 bg-[#22C55E] hover:bg-[#1eba51] active:scale-95 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-xl transition-all cursor-pointer select-none border border-emerald-400/25"
           title="Add task immediately"
           id="global-floating-add-task-btn"
@@ -724,9 +779,14 @@ export default function Home() {
       {/* CENTRAL TASK FORM MODAL */}
       <TaskFormModal
         isOpen={isTaskModalOpen}
-        onClose={() => setIsTaskModalOpen(false)}
+        onClose={() => {
+          setIsTaskModalOpen(false);
+          setEditingTask(null);
+        }}
         leads={leads}
         onCreateTask={handleCreateTask}
+        onUpdateTask={handleUpdateTask}
+        task={editingTask}
       />
 
       {/* STICKY BOTTOM NAVIGATION BAR FOR TOUCH DEVICES */}

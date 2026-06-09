@@ -15,7 +15,8 @@ import {
   Check, 
   Hourglass,
   SlidersHorizontal,
-  FolderOpen
+  FolderOpen,
+  Edit2
 } from 'lucide-react';
 import { getTodayDateString, getTomorrowDateString, isDateInCurrentWeek } from '@/lib/date-utils';
 
@@ -38,6 +39,7 @@ interface TasksViewProps {
   onUpdateTaskStatus: (taskId: string, status: 'Pending' | 'In Progress' | 'Completed', task?: CRMTask) => Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onOpenTaskModal: () => void;
+  onEditTask: (task: CRMTask) => void;
 }
 
 export default function TasksView({
@@ -47,6 +49,7 @@ export default function TasksView({
   onUpdateTaskStatus,
   onDeleteTask,
   onOpenTaskModal,
+  onEditTask,
 }: TasksViewProps) {
   // Filters
   const [activeFilter, setActiveFilter] = useState<'today' | 'tomorrow' | 'week' | 'overdue' | 'completed' | 'all'>('all');
@@ -310,10 +313,18 @@ export default function TasksView({
 
                   <button
                     onClick={() => onDeleteTask(task.id)}
-                    className="p-1.5 text-red-400 hover:text-white bg-red-50 hover:bg-red-500 border border-red-100 rounded-lg transition-all cursor-pointer"
+                    className="p-1.5 text-red-450 hover:text-white bg-red-50 hover:bg-red-500 border border-red-100 rounded-lg transition-all cursor-pointer"
                     title="Delete task log"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => onEditTask(task)}
+                    className="p-1.5 text-gray-500 hover:text-white bg-gray-50 hover:bg-gray-500 border border-gray-150 rounded-lg transition-all cursor-pointer"
+                    title="Edit task details"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -329,6 +340,78 @@ export default function TasksView({
           </div>
         )}
       </div>
+
+      {/* Dedicated Completed Task Section (when not already on the completed tab) */}
+      {activeFilter !== 'completed' && tasks.some(t => t.status === 'Completed') && (
+        <div className="mt-8 pt-6 border-t border-gray-200" id="completed-tasks-section">
+          <div className="flex items-center gap-2 mb-4">
+            <CheckSquare className="w-5 h-5 text-emerald-600" />
+            <h3 className="font-bold text-gray-800 text-sm uppercase tracking-wider font-display">Completed Tasks</h3>
+            <span className="bg-emerald-50 text-emerald-700 text-xs py-0.5 px-2 rounded-full font-bold border border-emerald-100">
+              {tasks.filter(t => t.status === 'Completed').length}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-80">
+            {tasks.filter(t => t.status === 'Completed').map(task => {
+              return (
+                <div key={task.id} className="bg-gray-50/50 p-5 rounded-2xl border border-gray-200 relative flex flex-col justify-between hover:bg-white transition-all">
+                  <div className="space-y-3.5">
+                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                      <span className="text-xs bg-white py-1 px-2 rounded-lg font-bold border border-gray-150 flex items-center gap-1">
+                        <span>{getCategoryIcon(task.category)}</span>
+                        <span className="text-gray-500">{task.category || 'Other'}</span>
+                      </span>
+                      <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase text-gray-500 bg-gray-100 border border-gray-200 leading-none">
+                        Completed
+                      </span>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <button
+                        onClick={() => onUpdateTaskStatus(task.id, 'Pending', task)}
+                        className="shrink-0 w-6 h-6 rounded-md border flex items-center justify-center transition-all bg-[#22C55E] border-[#22C55E] text-white shadow-xs cursor-pointer"
+                        aria-label="Mark pending"
+                      >
+                        <Check className="w-4 h-4 stroke-[3px]" />
+                      </button>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-sm tracking-tight text-gray-400 break-words line-through leading-snug">
+                          {task.title}
+                        </h4>
+                        {task.description && (
+                          <p className="text-xs text-gray-400 leading-relaxed font-sans mt-1 max-w-full break-words line-through">
+                            {task.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 pt-3.5 border-t border-gray-150 flex items-center justify-between text-xs text-gray-400">
+                    <span className="text-[10px] font-bold text-gray-400">Completed: {task.dueDate}</span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => onEditTask(task)}
+                        className="p-1.5 text-gray-500 hover:text-white bg-white hover:bg-gray-500 border border-gray-200 rounded-lg transition-all cursor-pointer"
+                        title="Edit task details"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={() => onDeleteTask(task.id)}
+                        className="p-1.5 text-red-450 hover:text-white bg-red-50 hover:bg-red-500 border border-red-100 rounded-lg transition-all cursor-pointer"
+                        title="Delete task log"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

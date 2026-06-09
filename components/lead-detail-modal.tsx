@@ -81,6 +81,8 @@ export default function LeadDetailModal({ isOpen, onClose, lead, onUpdateLead, o
   
   // Edit and Delete states
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteText, setEditingNoteText] = useState<string>('');
 
   // Real-time states for subcollections
   const [notes, setNotes] = useState<Note[]>([]);
@@ -516,6 +518,8 @@ export default function LeadDetailModal({ isOpen, onClose, lead, onUpdateLead, o
       await onUpdateLead(lead.id, {
         callCount: currentCount + 1,
         lastCalledAt: serverTimestamp(),
+        lastCallDate: new Date().toISOString().split('T')[0],
+        status: 'Called Today',
       });
 
       // Add a note automatically logging the call action
@@ -667,6 +671,36 @@ Sales Desk [Vaishnavi Enterprise]
     }
   };
 
+  const handleUpdateNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNoteId || !editingNoteText.trim() || !lead) return;
+
+    setSubmitting(true);
+    try {
+      const docRef = doc(db, 'leads', lead.id, 'notes', editingNoteId);
+      await updateDoc(docRef, {
+        note: editingNoteText.trim(),
+        updatedAt: serverTimestamp(),
+      });
+      setEditingNoteId(null);
+      setEditingNoteText('');
+    } catch (err) {
+      console.error('Error updating note:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!lead || !confirm('Are you sure you want to delete this progressive note?')) return;
+    try {
+      const docRef = doc(db, 'leads', lead.id, 'notes', noteId);
+      await deleteDoc(docRef);
+    } catch (err) {
+      console.error('Error deleting note:', err);
+    }
+  };
+
   // Save followup schedule reminder
   const handleSaveFollowup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -724,6 +758,79 @@ Sales Desk [Vaishnavi Enterprise]
             className="p-1 px-3 bg-white/10 hover:bg-white/20 active:bg-black text-white rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Sticky action bar at top of lead detail (Fixed underneath header, always visible without scrolling) */}
+        <div className="bg-gray-150 border-b border-gray-200 p-2.5 px-4 flex flex-wrap items-center justify-start gap-2 z-30 shrink-0 sticky top-0" id="sticky-top-lead-actions-bar">
+          <button
+            onClick={handleCallDial}
+            className="flex-1 min-w-[70px] sm:flex-initial py-1.5 px-2.5 bg-[#092E20] hover:bg-[#126c42]/90 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+            title="Call Lead"
+          >
+            <Phone className="w-3.5 h-3.5 text-[#22C55E] stroke-[2.5px]" />
+            <span>Call</span>
+          </button>
+          
+          <button
+            onClick={() => handleSendWhatsApp(1)}
+            className="flex-1 min-w-[85px] sm:flex-initial py-1.5 px-2.5 bg-[#128C7E] hover:bg-[#075E54] text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+            title="Send WhatsApp Template 1"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-white stroke-[2.5px]" />
+            <span>WhatsApp</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveSubTab('followups');
+              const elem = document.getElementById('subcollection-tabs-row');
+              if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex-1 min-w-[105px] sm:flex-initial py-1.5 px-2.5 bg-indigo-50 border border-indigo-150 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+            title="Schedule a Follow-up"
+          >
+            <Calendar className="w-3.5 h-3.5 stroke-[2.5px]" />
+            <span>Follow-up</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveSubTab('followups');
+              setNewFollowup(prev => ({ ...prev, actionType: 'Reminder' }));
+              const elem = document.getElementById('subcollection-tabs-row');
+              if (elem) elem.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className="flex-1 min-w-[95px] sm:flex-initial py-1.5 px-2.5 bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+            title="Set Reminder"
+          >
+            <Clock className="w-3.5 h-3.5 stroke-[2.5px]" />
+            <span>Reminder</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveSubTab('notes');
+              const elem = document.getElementById('new-note-textarea');
+              if (elem) {
+                elem.scrollIntoView({ behavior: 'smooth' });
+                elem.focus();
+              }
+            }}
+            className="flex-1 min-w-[70px] sm:flex-initial py-1.5 px-2.5 bg-sky-50 border border-sky-150 text-sky-700 hover:bg-sky-100 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+            title="Write Note"
+          >
+            <FileText className="w-3.5 h-3.5 stroke-[2.5px]" />
+            <span>Note</span>
+          </button>
+
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="flex-1 min-w-[70px] sm:flex-initial py-1.5 px-2.5 bg-emerald-50 border border-emerald-150 text-emerald-800 hover:bg-emerald-100/80 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
+            title="Edit Lead Details"
+          >
+            <Edit2 className="w-3.5 h-3.5 stroke-[2.5px]" />
+            <span>Edit</span>
           </button>
         </div>
 
@@ -1051,33 +1158,68 @@ Sales Desk [Vaishnavi Enterprise]
               // PROGRESS TIMELINE TAB
               <div className="flex-1 flex flex-col h-full justify-between gap-4">
                 
-                {/* Note creation Input */}
-                <form onSubmit={handleSaveNote} className="flex gap-2 shrink-0">
+                {/* Note creation / edit Input */}
+                <form onSubmit={editingNoteId ? handleUpdateNote : handleSaveNote} className="flex gap-2 shrink-0">
                   <input
                     type="text"
-                    value={newNoteText}
-                    onChange={(e) => setNewNoteText(e.target.value)}
-                    placeholder="Enter activity log or comment text..."
-                    className="flex-1 bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-xl py-2 px-3.5 text-xs outline-hidden"
+                    value={editingNoteId ? editingNoteText : newNoteText}
+                    onChange={(e) => editingNoteId ? setEditingNoteText(e.target.value) : setNewNoteText(e.target.value)}
+                    id="new-note-textarea"
+                    placeholder={editingNoteId ? "Edit activity log entry..." : "Enter activity log or comment text..."}
+                    className="flex-1 bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-xl py-2 px-3.5 text-xs outline-hidden font-medium"
                   />
                   <button
                     type="submit"
-                    disabled={submitting || !newNoteText.trim()}
-                    className="p-2.5 bg-[#092E20] hover:bg-[#0F5132] text-white rounded-xl transition-all cursor-pointer disabled:opacity-40"
+                    disabled={submitting || (editingNoteId ? !editingNoteText.trim() : !newNoteText.trim())}
+                    className="p-2.5 bg-[#092E20] hover:bg-[#0F5132] text-white rounded-xl transition-all cursor-pointer disabled:opacity-40 font-bold text-xs"
                   >
-                    <Send className="w-4 h-4 text-white" />
+                    {editingNoteId ? 'Update' : <Send className="w-4 h-4 text-white" />}
                   </button>
+                  {editingNoteId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingNoteId(null);
+                        setEditingNoteText('');
+                      }}
+                      className="px-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl transition-all cursor-pointer text-[11px] font-bold"
+                    >
+                      Cancel
+                    </button>
+                  )}
                 </form>
 
                 {/* Timeline display */}
                 <div className="flex-1 overflow-y-auto space-y-4 max-h-[35vh] pr-1">
                   {notes.map(n => (
-                    <div key={n.id} className="p-3 bg-gray-50 rounded-xl relative border border-gray-150">
+                    <div key={n.id} className="p-3 bg-gray-50 rounded-xl relative border border-gray-150 group/note hover:bg-gray-100/50 transition-all">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-[10px] text-[#092E20]">{n.user}</span>
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{n.date} &bull; {n.time}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {n.date} &bull; {n.time} {n.updatedAt && '(edited)'}
+                          </span>
+                          
+                          {/* Note Actions */}
+                          <div className="flex items-center gap-1 opacity-40 hover:opacity-100 group-hover/note:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(n.id);
+                                setEditingNoteText(n.note);
+                              }}
+                              className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-blue-650 transition-colors cursor-pointer"
+                              title="Edit progressive note"
+                            >
+                              <Edit2 className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteNote(n.id)}
+                              className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
+                              title="Delete progressive note"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <p className="text-xs text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap">{n.note}</p>

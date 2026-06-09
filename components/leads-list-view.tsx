@@ -25,6 +25,7 @@ interface LeadsListViewProps {
   onOpenAddLeadModal: () => void;
   onUpdateLeadStatus: (leadId: string, newStatus: LeadStatus) => Promise<void>;
   onDeleteLead: (leadId: string) => Promise<void>;
+  onQuickCall?: (lead: Lead) => Promise<void>;
 }
 
 const PIPELINE_STAGES: LeadStatus[] = [
@@ -43,6 +44,7 @@ export default function LeadsListView({
   onOpenAddLeadModal,
   onUpdateLeadStatus,
   onDeleteLead,
+  onQuickCall,
 }: LeadsListViewProps) {
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
   const [searchQuery, setSearchQuery] = useState('');
@@ -105,6 +107,16 @@ export default function LeadsListView({
     }
   };
 
+  const handleQuickCallDial = (e: React.MouseEvent, lead: Lead) => {
+    e.stopPropagation();
+    if (!lead.phone) return;
+    const cleanNum = lead.phone.replace(/[^0-9+]/g, '');
+    window.open(`tel:${cleanNum}`, '_blank');
+    if (onQuickCall) {
+      onQuickCall(lead);
+    }
+  };
+
   const getPriorityColor = (p: LeadPriority) => {
     switch (p) {
       case 'Hot':
@@ -122,12 +134,15 @@ export default function LeadsListView({
   const leadsByStage = useMemo(() => {
     const stages: { [key in LeadStatus]: Lead[] } = {
       'New Lead': [],
-      'Contacted': [],
+      "Today's Calls": [],
+      'Called Today': [],
+      'Follow-up Pending': [],
       'Quotation Sent': [],
-      'Follow Up': [],
-      'Negotiation': [],
       'Won': [],
       'Lost': [],
+      'Contacted': [],
+      'Follow Up': [],
+      'Negotiation': [],
     };
     filteredLeads.forEach(lead => {
       if (stages[lead.status]) {
@@ -276,172 +291,295 @@ export default function LeadsListView({
         </div>
       </div>
 
-      {/* Main Container Views Toggle */}
-      {viewMode === 'board' ? (
-        /* KANBAN BOARD FUNNEL VIEW */
-        <div className="overflow-x-auto pb-4 gap-4 flex items-start select-none" id="kanban-funnel-pipeline">
-          {PIPELINE_STAGES.map(stage => {
-            const stageLeads = leadsByStage[stage] || [];
-            return (
-              <div
-                key={stage}
-                className="w-[280px] shrink-0 bg-gray-100 rounded-2xl p-4 border border-gray-200"
-              >
-                {/* Stage title */}
-                <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
-                  <h3 className="font-bold text-xs text-gray-700 tracking-wide">{stage}</h3>
-                  <span className="bg-white/80 border border-gray-200 text-gray-500 font-bold px-2 py-0.5 rounded-full text-[10px]">
-                    {stageLeads.length}
-                  </span>
-                </div>
-
-                {/* Cards List */}
-                <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
-                  {stageLeads.map(l => (
-                    <div
-                      key={l.id}
-                      onClick={() => onSelectLead(l)}
-                      className="bg-white p-4 rounded-xl shadow-xs border border-gray-200/60 hover:shadow-md transition-shadow cursor-pointer space-y-3 relative group"
-                    >
-                      {/* Customer & Company names */}
-                      <div className="space-y-0.5 min-w-0">
-                        <h4 className="font-bold text-xs text-gray-800 tracking-tight leading-snug hover:text-[#092E20] truncate">
-                          {l.customerName}
-                        </h4>
-                        <p className="text-[10px] text-gray-500 font-semibold truncate">{l.companyName}</p>
-                      </div>
-
-                      {/* Info lines */}
-                      <div className="space-y-1 text-[10px] text-gray-400 font-medium">
-                        {l.city && (
-                          <div className="flex items-center gap-1">
-                            <MapPin className="w-3 h-3 text-gray-300" />
-                            <span className="truncate">{l.city} ({l.state || 'IN'})</span>
-                          </div>
-                        )}
-                        <span className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[9px] font-semibold mt-0.5">
-                          {l.leadSource}
-                        </span>
-                      </div>
-
-                      {/* Lower Strip */}
-                      <div className="flex items-center justify-between border-t border-gray-100 pt-3">
-                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${getPriorityColor(l.priority)}`}>
-                          {l.priority}
-                        </span>
-
-                        {/* Shift buttons for ease of touch pipeline move in columns */}
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={(e) => handleMoveStage(e, l.id, l.status, 'backward')}
-                            className="p-1 rounded-sm bg-gray-50 hover:bg-gray-100 text-gray-500 active:scale-90 transition-transform cursor-pointer"
-                            title="Move back"
-                          >
-                            <ArrowLeft className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            onClick={(e) => handleMoveStage(e, l.id, l.status, 'forward')}
-                            className="p-1 rounded-sm bg-gray-50 hover:bg-gray-100 text-gray-500 active:scale-90 transition-transform cursor-pointer"
-                            title="Move next"
-                          >
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  {stageLeads.length === 0 && (
-                    <div className="py-12 text-center text-gray-300 text-xs border border-dashed border-gray-300 rounded-xl">
-                      Empty Segment
-                    </div>
+      {/* Mobile Card-Based List View (No horizontal scrolling, highly optimized for touch devices) */}
+      <div className="md:hidden space-y-4" id="mobile-leads-cards-container">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Filtered Leads ({filteredLeads.length})</span>
+          <span className="text-[10px] text-gray-400 font-bold">Tap to open files</span>
+        </div>
+        <div className="grid grid-cols-1 gap-3">
+          {filteredLeads.map(l => (
+            <div
+              key={l.id}
+              onClick={() => onSelectLead(l)}
+              className="bg-white p-4 rounded-2xl border border-gray-150 hover:border-[#092E20] shadow-xs active:scale-[0.99] transition-all cursor-pointer flex flex-col justify-between space-y-3 relative"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-1 min-w-0 flex-1">
+                  <h4 className="font-bold text-sm tracking-tight text-gray-800 break-words leading-snug">
+                    {l.customerName}
+                  </h4>
+                  <p className="text-xs text-gray-500 font-semibold truncate leading-none">
+                    {l.companyName}
+                  </p>
+                  {l.city && (
+                    <p className="text-[10.5px] text-gray-400 font-medium flex items-center gap-1 mt-0.5">
+                      <MapPin className="w-3.5 h-3.5 text-gray-300" />
+                      <span>{l.city} {l.state ? `, ${l.state}` : ''}</span>
+                    </p>
                   )}
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* DATAGRID LIST VIEW */
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs" id="leads-datagrid-container">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-[#092E20] text-white">
-                <tr>
-                  <th className="p-4 uppercase tracking-wider font-bold">Client / Company</th>
-                  <th className="p-4 uppercase tracking-wider font-bold">Location</th>
-                  <th className="p-4 uppercase tracking-wider font-bold">Industry</th>
-                  <th className="p-4 uppercase tracking-wider font-bold">Source</th>
-                  <th className="p-4 uppercase tracking-wider font-bold">Pipeline Stage</th>
-                  <th className="p-4 uppercase tracking-wider font-bold">Priority</th>
-                  <th className="p-4 uppercase tracking-wider font-bold">Next Action</th>
-                  <th className="p-4 uppercase tracking-wider font-bold text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-150">
-                {filteredLeads.map(l => (
-                  <tr
-                    key={l.id}
-                    onClick={() => onSelectLead(l)}
-                    className="hover:bg-green-50/10 cursor-pointer transition-colors"
+                
+                {/* Quick Call Button */}
+                {l.phone && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleQuickCallDial(e, l);
+                    }}
+                    className="p-1.5 text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-100 rounded-lg transition-all active:scale-95 cursor-pointer shrink-0 flex items-center justify-center mr-1"
+                    title="Quick Call Dialer"
+                    id={`btn-quick-call-mobile-${l.id}`}
                   >
-                    <td className="p-4">
-                      <div className="space-y-0.5">
-                        <p className="font-bold text-gray-800 text-sm">{l.customerName}</p>
-                        <p className="text-gray-400 leading-snug">{l.companyName}</p>
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <p className="font-semibold text-gray-700">{l.city || '-'}</p>
-                      <p className="text-gray-400">{l.state || '-'}</p>
-                    </td>
-                    <td className="p-4 font-medium text-gray-650">{l.industry || '-'}</td>
-                    <td className="p-4 font-mono text-[10px] text-gray-400">{l.leadSource}</td>
-                    <td className="p-4">
-                      <span className="inline-block px-2.5 py-1 text-[10px] font-bold rounded-full bg-green-50 text-[#092E20] border border-green-150">
-                        {l.status}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <span className={`inline-block px-2.5 py-1 text-[10px] font-bold rounded border ${getPriorityColor(l.priority)}`}>
-                        {l.priority}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      <p className="font-bold text-gray-700">{l.nextAction}</p>
-                      <p className="text-[10px] text-gray-400 font-mono">{l.nextActionDate}</p>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => onSelectLead(l)}
-                          className="p-1.5 text-gray-500 hover:text-[#092E20] bg-gray-100 hover:bg-gray-200 roundedtransition-colors cursor-pointer"
-                          title="Open Details file"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => onDeleteLead(l.id)}
-                          className="p-1.5 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 rounded transition-colors cursor-pointer"
-                          title="Delete history"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {filteredLeads.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="p-12 text-center text-gray-400 text-sm">
-                      No matching leads found matching filters.
-                    </td>
-                  </tr>
+                    <Phone className="w-3.5 h-3.5 stroke-[2.5px] animate-pulse" />
+                  </button>
                 )}
-              </tbody>
-            </table>
-          </div>
+
+                {/* Delete button inline on card corner */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirm('Are you sure you want to delete this lead historical record?')) {
+                      onDeleteLead(l.id);
+                    }
+                  }}
+                  className="p-1.5 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 border border-red-105 rounded-lg transition-colors cursor-pointer shrink-0"
+                  title="Remove lead"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Tags Section */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${getPriorityColor(l.priority)}`}>
+                  Priority: {l.priority}
+                </span>
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-green-50 border border-green-150 text-[#092E20]">
+                  Status: {l.status}
+                </span>
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-gray-50 border border-gray-250 text-gray-500">
+                  Day: {l.dayAssignment || 'Monday'}
+                </span>
+                <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-blue-50 border border-blue-250 text-blue-800">
+                  Source: {l.leadSource}
+                </span>
+              </div>
+
+              {/* Call Stats Section */}
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400 gap-2">
+                <div className="flex items-center gap-1">
+                  <Phone className="w-3.5 h-3.5 text-gray-300" />
+                  <span>Calls: <strong className="text-gray-700 font-bold">{l.callCount || 0}</strong></span>
+                </div>
+                <div>
+                  <span>Last Call: <strong className="text-gray-700 font-bold">{l.lastCallDate || 'Never'}</strong></span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {filteredLeads.length === 0 && (
+            <div className="py-12 text-center text-gray-400 text-sm border-2 border-dashed border-gray-150 rounded-2xl bg-white select-none">
+              No matching leads found for active criteria.
+            </div>
+          )}
         </div>
-      )}
+      </div>
+
+      {/* Desktop Board/List View Toggle (Hidden on Mobile) */}
+      <div className="hidden md:block">
+        {viewMode === 'board' ? (
+          /* KANBAN BOARD FUNNEL VIEW */
+          <div className="overflow-x-auto pb-4 gap-4 flex items-start select-none" id="kanban-funnel-pipeline">
+            {PIPELINE_STAGES.map(stage => {
+              const stageLeads = leadsByStage[stage] || [];
+              return (
+                <div
+                  key={stage}
+                  className="w-[280px] shrink-0 bg-gray-100 rounded-2xl p-4 border border-gray-200"
+                >
+                  {/* Stage title */}
+                  <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-200">
+                    <h3 className="font-bold text-xs text-gray-700 tracking-wide">{stage}</h3>
+                    <span className="bg-white/80 border border-gray-200 text-gray-500 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                      {stageLeads.length}
+                    </span>
+                  </div>
+
+                  {/* Cards List */}
+                  <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                    {stageLeads.map(l => (
+                      <div
+                        key={l.id}
+                        onClick={() => onSelectLead(l)}
+                        className="bg-white p-4 rounded-xl shadow-xs border border-gray-200/60 hover:shadow-md transition-shadow cursor-pointer space-y-3 relative group"
+                      >
+                        {/* Customer & Company names */}
+                        <div className="space-y-0.5 min-w-0">
+                          <h4 className="font-bold text-xs text-gray-800 tracking-tight leading-snug hover:text-[#092E20] truncate">
+                            {l.customerName}
+                          </h4>
+                          <p className="text-[10px] text-gray-500 font-semibold truncate">{l.companyName}</p>
+                        </div>
+
+                        {/* Info lines */}
+                        <div className="space-y-1 text-[10px] text-gray-400 font-medium">
+                          {l.city && (
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-gray-300" />
+                              <span className="truncate">{l.city} ({l.state || 'IN'})</span>
+                            </div>
+                          )}
+                          <span className="inline-block px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded text-[9px] font-semibold mt-0.5">
+                            {l.leadSource}
+                          </span>
+                        </div>
+
+                        {/* Lower Strip */}
+                        <div className="flex items-center justify-between border-t border-gray-100 pt-3">
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold border ${getPriorityColor(l.priority)}`}>
+                            {l.priority}
+                          </span>
+
+                          {/* Shift buttons for ease of touch pipeline move in columns */}
+                          <div className="flex items-center gap-1.5">
+                            {l.phone && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleQuickCallDial(e, l);
+                                }}
+                                className="p-1 rounded-sm bg-emerald-50 hover:bg-emerald-600 text-emerald-600 hover:text-white border border-emerald-100 active:scale-90 transition-all cursor-pointer flex items-center justify-center mr-0.5"
+                                title="Quick Call Dialer"
+                                id={`btn-quick-call-kanban-${l.id}`}
+                              >
+                                <Phone className="w-3 h-3 stroke-[2.5px]" />
+                              </button>
+                            )}
+                            <button
+                              onClick={(e) => handleMoveStage(e, l.id, l.status, 'backward')}
+                              className="p-1 rounded-sm bg-gray-50 hover:bg-gray-100 text-gray-500 active:scale-90 transition-transform cursor-pointer"
+                              title="Move back"
+                            >
+                              <ArrowLeft className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={(e) => handleMoveStage(e, l.id, l.status, 'forward')}
+                              className="p-1 rounded-sm bg-gray-50 hover:bg-gray-100 text-gray-500 active:scale-90 transition-transform cursor-pointer"
+                              title="Move next"
+                            >
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {stageLeads.length === 0 && (
+                      <div className="py-12 text-center text-gray-300 text-xs border border-dashed border-gray-300 rounded-xl">
+                        Empty Segment
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          /* DATAGRID LIST VIEW */
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-xs" id="leads-datagrid-container">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead className="bg-[#092E20] text-white">
+                  <tr>
+                    <th className="p-4 uppercase tracking-wider font-bold">Client / Company</th>
+                    <th className="p-4 uppercase tracking-wider font-bold">Location</th>
+                    <th className="p-4 uppercase tracking-wider font-bold">Industry</th>
+                    <th className="p-4 uppercase tracking-wider font-bold">Source</th>
+                    <th className="p-4 uppercase tracking-wider font-bold">Pipeline Stage</th>
+                    <th className="p-4 uppercase tracking-wider font-bold">Priority</th>
+                    <th className="p-4 uppercase tracking-wider font-bold">Next Action</th>
+                    <th className="p-4 uppercase tracking-wider font-bold text-center">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-150">
+                  {filteredLeads.map(l => (
+                    <tr
+                      key={l.id}
+                      onClick={() => onSelectLead(l)}
+                      className="hover:bg-green-50/10 cursor-pointer transition-colors"
+                    >
+                      <td className="p-4">
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-gray-800 text-sm">{l.customerName}</p>
+                          <p className="text-gray-400 leading-snug">{l.companyName}</p>
+                        </div>
+                      </td>
+                      <td className="p-4">
+                        <p className="font-semibold text-gray-700">{l.city || '-'}</p>
+                        <p className="text-gray-400">{l.state || '-'}</p>
+                      </td>
+                      <td className="p-4 font-medium text-gray-650">{l.industry || '-'}</td>
+                      <td className="p-4 font-mono text-[10px] text-gray-400">{l.leadSource}</td>
+                      <td className="p-4">
+                        <span className="inline-block px-2.5 py-1 text-[10px] font-bold rounded-full bg-green-50 text-[#092E20] border border-green-150">
+                          {l.status}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <span className={`inline-block px-2.5 py-1 text-[10px] font-bold rounded border ${getPriorityColor(l.priority)}`}>
+                          {l.priority}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <p className="font-bold text-gray-700">{l.nextAction}</p>
+                        <p className="text-[10px] text-gray-400 font-mono">{l.nextActionDate}</p>
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          {l.phone && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleQuickCallDial(e, l);
+                              }}
+                              className="p-1.5 text-emerald-600 hover:text-white bg-emerald-50 hover:bg-emerald-600 border border-emerald-105 rounded transition-colors cursor-pointer"
+                              title="Quick Call Dialer"
+                              id={`btn-quick-call-table-${l.id}`}
+                            >
+                              <Phone className="w-3.5 h-3.5 stroke-[2.2px]" />
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onSelectLead(l)}
+                            className="p-1.5 text-gray-500 hover:text-[#092E20] bg-gray-100 hover:bg-gray-200 transition-colors rounded cursor-pointer animate-pulse"
+                            title="Open Details file"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => onDeleteLead(l.id)}
+                            className="p-1.5 text-red-500 hover:text-white bg-red-50 hover:bg-red-500 rounded transition-colors cursor-pointer"
+                            title="Delete history"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredLeads.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="p-12 text-center text-gray-400 text-sm">
+                        No matching leads found matching filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

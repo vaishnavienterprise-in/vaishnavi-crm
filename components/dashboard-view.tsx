@@ -319,6 +319,60 @@ export default function DashboardView({
         </div>
       </section>
 
+      {/* 1.5 DAILY OUTBOUND CALL REPORTS (Calls Today, This Week, This Month) */}
+      <section className="bg-white p-5 rounded-3xl border border-gray-150 shadow-sm space-y-4 animate-fadeIn" id="daily-call-reports-section">
+        <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+          <span className="p-1.5 rounded-lg bg-green-50 text-[#092E20]">
+            <Phone className="w-4 h-4 stroke-[2.5px] text-[#22C55E]" />
+          </span>
+          <div>
+            <h3 className="text-base font-bold text-gray-800 tracking-tight leading-none">Power Outbound Calling Reports</h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Vaishnavi Enterprise Real-time Analytics</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-br from-emerald-50/40 to-white p-4 rounded-xl border border-emerald-110 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-emerald-800 font-bold uppercase tracking-wider block">Calls Completed Today</span>
+              <p className="text-2xl font-black font-mono text-gray-800 mt-1 leading-none">
+                {leads.filter(l => l.lastCallDate === todayStr).length}
+              </p>
+              <span className="text-[9.5px] text-emerald-600 font-medium mt-1.5 inline-block">Dialed & Logged Today</span>
+            </div>
+            <div className="p-3 bg-emerald-50 text-[#092E20] rounded-xl self-center border border-emerald-100">
+              <Phone className="w-5 h-5 text-[#22C55E] stroke-[2.5px]" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-indigo-50/40 to-white p-4 rounded-xl border border-indigo-110 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-indigo-800 font-bold uppercase tracking-wider block">Calls Completed This Week</span>
+              <p className="text-2xl font-black font-mono text-gray-800 mt-1 leading-none">
+                {leads.filter(l => l.lastCallDate && isDateInCurrentWeek(l.lastCallDate)).length}
+              </p>
+              <span className="text-[9.5px] text-indigo-600 font-medium mt-1.5 inline-block">Current Week Total</span>
+            </div>
+            <div className="p-3 bg-indigo-50 text-indigo-700 rounded-xl self-center border border-indigo-100">
+              <CalendarDays className="w-5 h-5 stroke-[2.5px]" />
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-pink-50/40 to-white p-4 rounded-xl border border-pink-110 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-pink-800 font-bold uppercase tracking-wider block">Calls Completed This Month</span>
+              <p className="text-2xl font-black font-mono text-gray-800 mt-1 leading-none">
+                {leads.filter(l => l.lastCallDate && isDateInCurrentMonth(l.lastCallDate)).length}
+              </p>
+              <span className="text-[9.5px] text-pink-600 font-medium mt-1.5 inline-block">Monthly Activity Window</span>
+            </div>
+            <div className="p-3 bg-pink-50 text-pink-700 rounded-xl self-center border border-pink-100">
+              <Clock className="w-5 h-5 stroke-[2.5px]" />
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* DRILLDOWN OVERLAY DRAWERS */}
       {drilldownType && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-xs overflow-y-auto" id="drilldown-modal-container">

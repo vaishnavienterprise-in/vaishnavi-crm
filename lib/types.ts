@@ -1,11 +1,14 @@
 export type LeadStatus =
   | 'New Lead'
-  | 'Contacted'
+  | "Today's Calls"
+  | 'Called Today'
+  | 'Follow-up Pending'
   | 'Quotation Sent'
-  | 'Follow Up'
-  | 'Negotiation'
   | 'Won'
-  | 'Lost';
+  | 'Lost'
+  | 'Contacted'
+  | 'Follow Up'
+  | 'Negotiation';
 
 export type LeadPriority = 'Hot' | 'Warm' | 'Cold';
 
@@ -68,6 +71,7 @@ export interface Lead {
   nextActionTime: string; // HH:MM
   ownerId: string;
   callCount?: number;
+  lastCallDate?: string;
   notes?: string;
 }
 
@@ -118,6 +122,7 @@ export interface Note {
   user: string;
   createdAt: any; // Firestore Timestamp
   ownerId: string;
+  updatedAt?: any; // Firestore Timestamp
 }
 
 export interface CallLog {

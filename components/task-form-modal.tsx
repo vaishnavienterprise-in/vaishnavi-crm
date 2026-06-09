@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -10,6 +11,8 @@ interface TaskFormModalProps {
   onClose: () => void;
   leads: Lead[];
   onCreateTask: (taskData: Partial<CRMTask>) => Promise<void>;
+  onUpdateTask?: (taskId: string, taskData: Partial<CRMTask>) => Promise<void>;
+  task?: CRMTask | null;
 }
 
 export default function TaskFormModal({
@@ -17,6 +20,8 @@ export default function TaskFormModal({
   onClose,
   leads,
   onCreateTask,
+  onUpdateTask,
+  task = null,
 }: TaskFormModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -29,21 +34,30 @@ export default function TaskFormModal({
   const [leadId, setLeadId] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Reset fields when opening
+  // Reset fields when opening or switching tasks
   useEffect(() => {
     if (isOpen) {
-      /* eslint-disable react-hooks/set-state-in-effect */
-      setTitle('');
-      setDescription('');
-      setDueDate(getTodayDateString());
-      setDueTime('09:00');
-      setPriority('Medium');
-      setCategory('Call');
-      setRecurring('none');
-      setLeadId('');
-      /* eslint-enable react-hooks/set-state-in-effect */
+      if (task) {
+        setTitle(task.title || '');
+        setDescription(task.description || '');
+        setDueDate(task.dueDate || getTodayDateString());
+        setDueTime(task.dueTime || '09:00');
+        setPriority(task.priority || 'Medium');
+        setCategory(task.category || 'Call');
+        setRecurring(task.recurring || 'none');
+        setLeadId(task.leadId || '');
+      } else {
+        setTitle('');
+        setDescription('');
+        setDueDate(getTodayDateString());
+        setDueTime('09:00');
+        setPriority('Medium');
+        setCategory('Call');
+        setRecurring('none');
+        setLeadId('');
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, task]);
 
   if (!isOpen) return null;
 
@@ -56,20 +70,33 @@ export default function TaskFormModal({
 
     setSaving(true);
     try {
-      await onCreateTask({
+      const taskData: Partial<CRMTask> = {
         title: title.trim(),
         description: description.trim(),
         dueDate,
-        dueTime: dueTime || undefined,
         priority,
         category,
         recurring,
-        status: 'Pending',
-        leadId: leadId || undefined,
-      });
+      };
+
+      if (dueTime) {
+        taskData.dueTime = dueTime;
+      }
+      if (leadId) {
+        taskData.leadId = leadId;
+      }
+
+      if (task && onUpdateTask) {
+        await onUpdateTask(task.id, taskData);
+      } else {
+        await onCreateTask({
+          ...taskData,
+          status: 'Pending',
+        });
+      }
       onClose();
     } catch (err) {
-      console.error('Error creating task:', err);
+      console.error('Error saving task:', err);
     } finally {
       setSaving(false);
     }
@@ -86,7 +113,7 @@ export default function TaskFormModal({
               <CheckCircle className="w-5 h-5 text-[#22C55E]" />
             </span>
             <div>
-              <h3 className="font-bold text-base text-gray-800 tracking-tight">Create Mandatory Task</h3>
+              <h3 className="font-bold text-base text-gray-800 tracking-tight">{task ? 'Edit CRM Task' : 'Create Mandatory Task'}</h3>
               <p className="text-[10px] text-gray-400 uppercase tracking-widest font-bold mt-0.5">VAISHNAVI ENTERPRISE WORKFLOW</p>
             </div>
           </div>
@@ -198,7 +225,7 @@ export default function TaskFormModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Priority */}
             <div>
               <label className="block text-[10px] font-bold text-gray-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
@@ -240,7 +267,7 @@ export default function TaskFormModal({
               >
                 <option value="">No Direct Link</option>
                 {leads.map(l => (
-                  <option key={l.id} value={l.id}>
+                   <option key={l.id} value={l.id}>
                     {l.companyName} ({l.customerName})
                   </option>
                 ))}
@@ -262,7 +289,7 @@ export default function TaskFormModal({
               disabled={saving}
               className="py-2.5 px-6 text-xs font-bold text-white bg-[#092E20] hover:bg-[#0F5132] rounded-xl cursor-pointer disabled:opacity-50 select-none shadow-sm hover:shadow-md transition-all flex items-center justify-center"
             >
-              {saving ? 'Saving...' : 'Save Task Record'}
+              {saving ? 'Saving...' : task ? 'Update Task Record' : 'Save Task Record'}
             </button>
           </div>
         </form>

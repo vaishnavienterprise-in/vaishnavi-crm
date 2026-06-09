@@ -41,13 +41,16 @@ export default function RemindersView({
     }
     setSaving(true);
     try {
-      await onCreateReminder({
+      const reminderData: Partial<CRMReminder> = {
         title,
         date,
         time,
         notes,
-        leadId: leadId || undefined,
-      });
+      };
+      if (leadId) {
+        reminderData.leadId = leadId;
+      }
+      await onCreateReminder(reminderData);
       setTitle('');
       setDate(getTodayDateString());
       setTime('10:00');
