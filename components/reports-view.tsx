@@ -101,8 +101,12 @@ export default function ReportsView({ leads, quotations }: ReportsViewProps) {
         'Company Name',
         'Status',
         'Priority',
-        'Phone',
-        'Email',
+        'Primary Phone',
+        'All Registered Phones',
+        'Primary Email',
+        'All Registered Emails',
+        'Contact Directory Counts',
+        'Contact Representatives List',
         'City',
         'State',
         'GST Number',
@@ -116,13 +120,24 @@ export default function ReportsView({ leads, quotations }: ReportsViewProps) {
     ];
 
     leads.forEach(l => {
+      const allPhonesStr = l.phones && l.phones.length > 0 ? l.phones.join('; ') : l.phone || '';
+      const allEmailsStr = l.emails && l.emails.length > 0 ? l.emails.join('; ') : l.email || '';
+      const contactsCount = l.contacts ? l.contacts.length : 0;
+      const contactsStr = l.contacts && l.contacts.length > 0 
+        ? l.contacts.map(c => `${c.name} (${c.designation || 'Rep'}: ${c.mobile || ''})`).join('; ') 
+        : '';
+
       csvRows.push([
         l.customerName || '',
         l.companyName || '',
         l.status || '',
         l.priority || '',
         l.phone || '',
+        allPhonesStr,
         l.email || '',
+        allEmailsStr,
+        String(contactsCount),
+        contactsStr,
         l.city || '',
         l.state || '',
         l.gstNumber || '',
@@ -237,24 +252,27 @@ export default function ReportsView({ leads, quotations }: ReportsViewProps) {
     const l = activeSingleLeadObj;
     
     let csvString = '';
-    csvString += `Customer Name,"\${(l.customerName || '').replace(/"/g, '""')}"\\n`;
-    csvString += `Company Name,"\${(l.companyName || '').replace(/"/g, '""')}"\\n`;
-    csvString += `Pipeline Status,"\${(l.status || '').replace(/"/g, '""')}"\\n`;
-    csvString += `Priority,"\${(l.priority || '').replace(/"/g, '""')}"\\n`;
-    csvString += `Phone,"\${(l.phone || '').replace(/"/g, '""')}"\\n`;
-    csvString += `Email,"\${(l.email || '').replace(/"/g, '""')}"\\n`;
-    csvString += `City,"\${(l.city || '').replace(/"/g, '""')}"\\n`;
-    csvString += `GST Number,"\${(l.gstNumber || '').replace(/"/g, '""')}"\\n`;
-    csvString += `Website,"\${(l.website || '').replace(/"/g, '""')}"\\n`;
-    csvString += `Total Calls Dialed,"\${String(l.callCount || 0)}"\\n`;
-    csvString += `Last Dial Date,"\${(l.lastCallDate || '')}"\\n`;
-    csvString += `Next Planned Action,"\${(l.nextAction || '')}"\\n`;
-    csvString += `Next Date,"\${(l.nextActionDate || '')}"\\n`;
+    csvString += `Customer Name,"${(l.customerName || '').replace(/"/g, '""')}"\n`;
+    csvString += `Company Name,"${(l.companyName || '').replace(/"/g, '""')}"\n`;
+    csvString += `Pipeline Status,"${(l.status || '').replace(/"/g, '""')}"\n`;
+    csvString += `Priority,"${(l.priority || '').replace(/"/g, '""')}"\n`;
+    csvString += `Primary Phone,"${(l.phone || '').replace(/"/g, '""')}"\n`;
+    csvString += `All Registered Phones,"${((l.phones || []).join('; ')).replace(/"/g, '""')}"\n`;
+    csvString += `Primary Email,"${(l.email || '').replace(/"/g, '""')}"\n`;
+    csvString += `All Registered Emails,"${((l.emails || []).join('; ')).replace(/"/g, '""')}"\n`;
+    csvString += `City,"${(l.city || '').replace(/"/g, '""')}"\n`;
+    csvString += `GST Number,"${(l.gstNumber || '').replace(/"/g, '""')}"\n`;
+    csvString += `Website,"${(l.website || '').replace(/"/g, '""')}"\n`;
+    csvString += `Total Calls Dialed,"${String(l.callCount || 0)}"\n`;
+    csvString += `Last Dial Date,"${(l.lastCallDate || '')}"\n`;
+    csvString += `Next Planned Action,"${(l.nextAction || '')}"\n`;
+    csvString += `Next Date,"${(l.nextActionDate || '')}"\n`;
+    csvString += `Contact Representatives,"${((l.contacts || []).map(c => `${c.name} (${c.designation || 'Rep'}: ${c.mobile || ''})`).join('; ')).replace(/"/g, '""')}"\n`;
 
     const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csvString);
     const link = document.createElement('a');
     link.setAttribute('href', csvContent);
-    link.setAttribute('download', `Vaishnavi_Lead_Card_\${l.customerName.replace(/\\s+/g, '_')}.csv`);
+    link.setAttribute('download', `Vaishnavi_Lead_Card_${l.customerName.replace(/\s+/g, '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -268,10 +286,54 @@ export default function ReportsView({ leads, quotations }: ReportsViewProps) {
     const printWin = window.open('', '_blank');
     if (!printWin) return alert('Pop-up blocked. Please permit pop-ups on this port.');
 
+    const phonesListHtml = (l.phones || []).map((ph, idx) => `<div>Phone ${idx + 1}: <strong>${ph}</strong></div>`).join('') || `<div>Phone: <strong>${l.phone || '-'}</strong></div>`;
+    const emailsListHtml = (l.emails || []).map((em, idx) => `<div>Email ${idx + 1}: <strong>${em}</strong></div>`).join('') || `<div>Email: <strong>${l.email || '-'}</strong></div>`;
+    
+    let contactsHtml = '';
+    if (l.contacts && l.contacts.length > 0) {
+      contactsHtml = `
+        <div class="info-card" style="grid-column: span 2; margin-top: 10px;">
+          <h4 style="border-bottom: 2px solid #22c55e;">Registered Contact Representatives Directory (${l.contacts.length})</h4>
+          <table style="width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 10px;">
+            <thead>
+              <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0; text-align: left;">
+                <th style="padding: 6px;">Name</th>
+                <th style="padding: 6px;">Designation</th>
+                <th style="padding: 6px;">Department</th>
+                <th style="padding: 6px;">Mobile</th>
+                <th style="padding: 6px;">WhatsApp</th>
+                <th style="padding: 6px;">Email</th>
+                <th style="padding: 6px;">Special Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${l.contacts.map(c => `
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 6px; font-weight: bold;">${c.name}</td>
+                  <td style="padding: 6px;">${c.designation || '-'}</td>
+                  <td style="padding: 6px;">${c.department || '-'}</td>
+                  <td style="padding: 6px; font-family: monospace;">${c.mobile || '-'}</td>
+                  <td style="padding: 6px; font-family: monospace;">${c.whatsapp || '-'}</td>
+                  <td style="padding: 6px;">${c.email || '-'}</td>
+                  <td style="padding: 6px; font-style: italic; color: #64748b;">${c.notes || '-'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    } else {
+      contactsHtml = `
+        <div class="info-card" style="grid-column: span 2; margin-top: 10px; text-align: center; color: #64748b; font-style: italic; padding: 20px;">
+          No Secondary Representative Contacts registered in the Lead's Contact Directory.
+        </div>
+      `;
+    }
+
     printWin.document.write(`
       <html>
         <head>
-          <title>Lead Dossier - \${l.customerName}</title>
+          <title>Lead Dossier - ${l.customerName}</title>
           <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #334155; margin: 40px; line-height: 1.6; }
             .header-panel { display: flex; justify-content: space-between; border-bottom: 3px solid #092E20; padding-bottom: 15px; margin-bottom: 30px; }
@@ -293,31 +355,41 @@ export default function ReportsView({ leads, quotations }: ReportsViewProps) {
               <div class="logo-sub">Client Dossier Report Summary</div>
             </div>
             <div class="meta">
-              Date Generated: <strong>\s*\${new Date().toLocaleDateString('en-IN')}</strong><br>
+              Date Generated: <strong>${new Date().toLocaleDateString('en-IN')}</strong><br>
               File Status: <strong>Official Summary Report</strong>
             </div>
           </div>
 
-          <h2 style="color: #092E20; border-bottom: 1.5px solid #092E20; padding-bottom: 4px; margin-bottom: 20px;">Client Dossier: \${l.customerName}</h2>
+          <h2 style="color: #092E20; border-bottom: 1.5px solid #092E20; padding-bottom: 4px; margin-bottom: 20px;">Client Dossier: ${l.customerName}</h2>
 
           <div class="grid-container">
             <div class="info-card">
-              <h4>General Company profile</h4>
-              <div class="info-row"><span>Customer Name</span><strong>\${l.customerName}</strong></div>
-              <div class="info-row"><span>Company Designation</span><strong>\${l.companyName}</strong></div>
-              <div class="info-row"><span>Industry Sector</span><strong>\${l.industry || '-'}</strong></div>
-              <div class="info-row"><span>Town/City Location</span><strong>\${l.city ? \`\${l.city} (\${l.state || 'IN'})\` : '-'}</strong></div>
-              <div class="info-row"><span>Lead Source Route</span><strong>\${l.leadSource}</strong></div>
+              <h4>General Company Profile</h4>
+              <div class="info-row"><span>Customer Name</span><strong>${l.customerName}</strong></div>
+              <div class="info-row"><span>Company Designation</span><strong>${l.companyName}</strong></div>
+              <div class="info-row"><span>Industry Sector</span><strong>${l.industry || '-'}</strong></div>
+              <div class="info-row"><span>Town/City Location</span><strong>${l.city ? `${l.city} (${l.state || 'IN'})` : '-'}</strong></div>
+              <div class="info-row"><span>Lead Source Route</span><strong>${l.leadSource}</strong></div>
+              <div class="info-row" style="margin-top: 6px; border-top: 1px solid #f1f5f9; padding-top: 6px; display: block;">
+                <span style="font-weight: bold; color: #475569; display: block; margin-bottom: 2px;">Registered Contact Numbers:</span>
+                <div style="padding-left: 5px;">${phonesListHtml}</div>
+              </div>
             </div>
 
             <div class="info-card">
               <h4>Workflow CRM Meta</h4>
-              <div class="info-row"><span>Active Status</span><strong style="color: #092E20;">\${l.status}</strong></div>
-              <div class="info-row"><span>Priority Status</span><strong>\${l.priority}</strong></div>
-              <div class="info-row"><span>GST Reg Number</span><strong>\${l.gstNumber || '-'}</strong></div>
-              <div class="info-row"><span>Call Tally Count</span><strong>\${l.callCount || 0} Dialed</strong></div>
-              <div class="info-row"><span>Last Successful Dial</span><strong>\${l.lastCallDate || 'Never'}</strong></div>
+              <div class="info-row"><span>Active Status</span><strong style="color: #092E20;">${l.status}</strong></div>
+              <div class="info-row"><span>Priority Status</span><strong>${l.priority}</strong></div>
+              <div class="info-row"><span>GST Reg Number</span><strong>${l.gstNumber || '-'}</strong></div>
+              <div class="info-row"><span>Call Tally Count</span><strong>${l.callCount || 0} Dialed</strong></div>
+              <div class="info-row"><span>Last Successful Dial</span><strong>${l.lastCallDate || 'Never'}</strong></div>
+              <div class="info-row" style="margin-top: 6px; border-top: 1px solid #f1f5f9; padding-top: 6px; display: block;">
+                <span style="font-weight: bold; color: #475569; display: block; margin-bottom: 2px;">Registered Emails:</span>
+                <div style="padding-left: 5px;">${emailsListHtml}</div>
+              </div>
             </div>
+
+            ${contactsHtml}
           </div>
 
           <div style="margin-top: 40px; border-top: 1px dashed #cbd5e1; padding-top: 15px; font-size: 11px; text-align: center; color: #94a3b8;">

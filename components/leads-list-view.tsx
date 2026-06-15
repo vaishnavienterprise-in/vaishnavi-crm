@@ -68,6 +68,19 @@ export default function LeadsListView({
 
       // 1. Search Query
       const q = searchQuery.toLowerCase();
+      
+      const matchPhones = l.phones && l.phones.some(ph => ph.toLowerCase().includes(q));
+      const matchEmails = l.emails && l.emails.some(em => em.toLowerCase().includes(q));
+      const matchContacts = l.contacts && l.contacts.some(c => 
+        c.name.toLowerCase().includes(q) || 
+        c.email.toLowerCase().includes(q) || 
+        c.mobile.toLowerCase().includes(q) || 
+        c.whatsapp.toLowerCase().includes(q) ||
+        c.designation.toLowerCase().includes(q) ||
+        c.department.toLowerCase().includes(q) ||
+        c.notes.toLowerCase().includes(q)
+      );
+
       const matchSearch =
         !q ||
         l.customerName.toLowerCase().includes(q) ||
@@ -76,7 +89,10 @@ export default function LeadsListView({
         l.email.toLowerCase().includes(q) ||
         l.city.toLowerCase().includes(q) ||
         l.industry.toLowerCase().includes(q) ||
-        l.requirement?.toLowerCase().includes(q);
+        l.requirement?.toLowerCase().includes(q) ||
+        matchPhones ||
+        matchEmails ||
+        matchContacts;
 
       // 2. Status match
       const matchStatus = filterStatus === 'all' || l.status === filterStatus;
@@ -364,6 +380,11 @@ export default function LeadsListView({
                 <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-blue-50 border border-blue-250 text-blue-800">
                   Source: {l.leadSource}
                 </span>
+                {l.contacts && l.contacts.length > 0 && (
+                  <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800">
+                    Contacts: {l.contacts.length}
+                  </span>
+                )}
               </div>
 
               {/* Call Stats Section */}
@@ -512,6 +533,25 @@ export default function LeadsListView({
                         <div className="space-y-0.5">
                           <p className="font-bold text-gray-800 text-sm">{l.customerName}</p>
                           <p className="text-gray-400 leading-snug">{l.companyName}</p>
+                          {((l.phones && l.phones.length > 1) || (l.emails && l.emails.length > 1) || (l.contacts && l.contacts.length > 0)) && (
+                            <div className="flex flex-wrap gap-1 items-center mt-1">
+                              {l.phones && l.phones.length > 1 && (
+                                <span className="bg-green-50 text-[#092E20] border border-green-150 text-[9px] px-1 py-0.2 rounded font-sans font-bold" title={`${l.phones.length} Phone Numbers Registered`}>
+                                  📞 {l.phones.length} No.s
+                                </span>
+                              )}
+                              {l.emails && l.emails.length > 1 && (
+                                <span className="bg-purple-50 text-purple-700 border border-purple-150 text-[9px] px-1 py-0.2 rounded font-sans font-bold" title={`${l.emails.length} Emails Registered`}>
+                                  ✉️ {l.emails.length} Emails
+                                </span>
+                              )}
+                              {l.contacts && l.contacts.length > 0 && (
+                                <span className="bg-blue-50 text-blue-700 border border-blue-150 text-[9px] px-1 py-0.2 rounded font-sans font-bold" title={`${l.contacts.length} Contact Representatives Registered`}>
+                                  👥 {l.contacts.length} Contacts
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </td>
                       <td className="p-4">

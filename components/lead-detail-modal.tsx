@@ -41,6 +41,9 @@ import {
   Percent,
   Download,
   Notebook,
+  Users,
+  ClipboardList,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface LeadDetailModalProps {
@@ -84,12 +87,26 @@ export default function LeadDetailModal({ isOpen, onClose, lead, onUpdateLead, o
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteText, setEditingNoteText] = useState<string>('');
 
+  // Redesigned central tab controller and contact directory states
+  const [activeMainTab, setActiveMainTab] = useState<'overview' | 'contacts' | 'notes' | 'quotes'>('overview');
+  const [editingContactIndex, setEditingContactIndex] = useState<number | null>(null);
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    name: '',
+    designation: '',
+    department: '',
+    mobile: '',
+    whatsapp: '',
+    email: '',
+    notes: '',
+  });
+
   // Real-time states for subcollections
   const [notes, setNotes] = useState<Note[]>([]);
   const [followups, setFollowups] = useState<FollowUp[]>([]);
   const [allQuotations, setAllQuotations] = useState<Quotation[]>([]);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'notes' | 'followups' | 'quotations'>('notes');
+  const [activeSubTab, setActiveSubTab] = useState<'notes' | 'followups' | 'quotations' | 'contacts'>('notes');
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
 
   // Preload company logo for flawless catalog invoice download
@@ -123,6 +140,67 @@ export default function LeadDetailModal({ isOpen, onClose, lead, onUpdateLead, o
   });
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Contact Directory Actions
+  const handleSaveContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!contactForm.name.trim() || !lead) return;
+
+    setSubmitting(true);
+    try {
+      const existingContacts = lead.contacts || [];
+      let updatedContacts = [...existingContacts];
+
+      if (editingContactIndex !== null) {
+        // Edit existing contact
+        updatedContacts[editingContactIndex] = { ...contactForm };
+      } else {
+        // Add new contact
+        updatedContacts.push({ ...contactForm });
+      }
+
+      await onUpdateLead(lead.id, { contacts: updatedContacts });
+
+      // Reset form
+      setContactForm({
+        name: '',
+        designation: '',
+        department: '',
+        mobile: '',
+        whatsapp: '',
+        email: '',
+        notes: '',
+      });
+      setEditingContactIndex(null);
+      setShowContactForm(false);
+      alert(editingContactIndex !== null ? 'Contact updated successfully!' : 'Contact added successfully!');
+    } catch (err) {
+      console.error('Error saving contact:', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleEditContactClick = (index: number) => {
+    if (!lead || !lead.contacts) return;
+    const contact = lead.contacts[index];
+    setContactForm({ ...contact });
+    setEditingContactIndex(index);
+    setShowContactForm(true);
+  };
+
+  const handleDeleteContact = async (index: number) => {
+    if (!lead || !lead.contacts) return;
+    if (!confirm('Are you sure you want to delete this contact?')) return;
+
+    try {
+      const updatedContacts = lead.contacts.filter((_, i) => i !== index);
+      await onUpdateLead(lead.id, { contacts: updatedContacts });
+      alert('Contact deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting contact:', err);
+    }
+  };
 
   // Computed creation date
   const createdDateStr = useMemo(() => {
@@ -743,7 +821,7 @@ Sales Desk [Vaishnavi Enterprise]
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
       <div className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 flex flex-col max-h-[90vh]">
         
-        {/* Header */}
+        {/* Modern styled Header */}
         <div className="bg-[#092E20] text-white p-5 flex items-center justify-between border-b border-[#22C55E]/10 select-none">
           <div>
             <h3 className="font-bold font-display text-lg tracking-tight truncate max-w-[400px]">
@@ -1144,6 +1222,14 @@ Sales Desk [Vaishnavi Enterprise]
                 Reminders & Follow Ups ({followups.length})
               </button>
               <button
+                onClick={() => setActiveSubTab('contacts')}
+                className={`py-2 px-4 text-xs font-bold border-b-2 cursor-pointer transition-all ${
+                  activeSubTab === 'contacts' ? 'border-[#092E20] text-[#092E20]' : 'border-transparent text-gray-400 hover:text-gray-600'
+                }`}
+              >
+                Contacts ({(lead.contacts || []).length})
+              </button>
+              <button
                 onClick={() => setActiveSubTab('quotations')}
                 className={`py-2 px-4 text-xs font-bold border-b-2 cursor-pointer transition-all ${
                   activeSubTab === 'quotations' ? 'border-[#092E20] text-[#092E20]' : 'border-transparent text-gray-400 hover:text-gray-600'
@@ -1342,6 +1428,221 @@ Sales Desk [Vaishnavi Enterprise]
                     </div>
                   )}
                 </div>
+              </div>
+            ) : activeSubTab === 'contacts' ? (
+              // CONTACT DIRECTORY TAB
+              <div className="flex-1 flex flex-col h-full justify-between gap-4">
+                <div className="flex justify-between items-center shrink-0 border-b border-gray-150 pb-2">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-emerald-700" />
+                    <span>Contact Directory</span>
+                  </span>
+                  
+                  {!showContactForm && (
+                    <button
+                      onClick={() => {
+                        setEditingContactIndex(null);
+                        setContactForm({
+                          name: '',
+                          designation: '',
+                          department: '',
+                          mobile: '',
+                          whatsapp: '',
+                          email: '',
+                          notes: '',
+                        });
+                        setShowContactForm(true);
+                      }}
+                      className="py-1 px-2.5 bg-[#092E20] hover:bg-[#0F5132] text-white rounded text-xs font-bold flex items-center gap-1 cursor-pointer transition-transform active:scale-95 select-none"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-[#22C55E]" />
+                      <span>Add Contact</span>
+                    </button>
+                  )}
+                </div>
+
+                {showContactForm ? (
+                  /* Create / Edit Contact Form */
+                  <form onSubmit={handleSaveContact} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 shrink-0 overflow-y-auto max-h-[45vh]">
+                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-200">
+                      <Users className="w-4 h-4 text-[#092E20]" />
+                      <span className="text-xs font-bold text-gray-700">
+                        {editingContactIndex !== null ? 'Modify Contact Representative' : 'Register New Contact Representative'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Name *</label>
+                        <input
+                          type="text"
+                          required
+                          value={contactForm.name}
+                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
+                          placeholder="e.g. Ramesh Kumar"
+                          onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Designation</label>
+                        <input
+                          type="text"
+                          value={contactForm.designation}
+                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
+                          placeholder="e.g. Purchase Manager"
+                          onChange={(e) => setContactForm(prev => ({ ...prev, designation: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Department</label>
+                        <input
+                          type="text"
+                          value={contactForm.department}
+                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
+                          placeholder="e.g. Procurement / Accounts"
+                          onChange={(e) => setContactForm(prev => ({ ...prev, department: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Email</label>
+                        <input
+                          type="email"
+                          value={contactForm.email}
+                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
+                          placeholder="ramesh@company.com"
+                          onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Mobile Phone No.</label>
+                        <input
+                          type="text"
+                          value={contactForm.mobile}
+                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
+                          placeholder="e.g. 9876543210"
+                          onChange={(e) => setContactForm(prev => ({ ...prev, mobile: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">WhatsApp No.</label>
+                        <input
+                          type="text"
+                          value={contactForm.whatsapp}
+                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
+                          placeholder="e.g. 9876543210"
+                          onChange={(e) => setContactForm(prev => ({ ...prev, whatsapp: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Representative Notes</label>
+                      <input
+                        type="text"
+                        value={contactForm.notes}
+                        className="w-full bg-white border border-gray-200 rounded p-2 text-xs outline-hidden focus:border-[#092E20]"
+                        placeholder="e.g. Usually handles release orders, call only after 2 PM..."
+                        onChange={(e) => setContactForm(prev => ({ ...prev, notes: e.target.value }))}
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-2 text-xs pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowContactForm(false)}
+                        className="py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded font-bold cursor-pointer transition"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={submitting || !contactForm.name.trim()}
+                        className="py-1.5 px-4 bg-[#092E20] hover:bg-[#0F5132] text-white rounded font-bold cursor-pointer disabled:opacity-40 transition"
+                      >
+                        {editingContactIndex !== null ? 'Save Changes' : 'Register Representative'}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  /* Contacts List View */
+                  <div className="flex-1 overflow-y-auto space-y-3 max-h-[42vh] pr-1 mt-1">
+                    {(lead.contacts || []).map((c, index) => (
+                      <div key={index} className="p-3 bg-white border border-gray-200/70 hover:border-emerald-250 rounded-xl shadow-xs text-xs flex justify-between items-start gap-4 transition-all group">
+                        <div className="space-y-1.5 flex-1 min-w-0">
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-[#092E20] text-sm truncate">{c.name}</span>
+                              {c.designation && (
+                                <span className="bg-emerald-50 text-[#092E20] text-[9.5px] font-bold px-1.5 py-0.5 rounded">
+                                  {c.designation}
+                                </span>
+                              )}
+                              {c.department && (
+                                <span className="bg-gray-50 text-gray-500 text-[9.5px] px-1.5 py-0.5 rounded border border-gray-100">
+                                  {c.department}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-gray-600">
+                            {c.mobile && (
+                              <div className="flex items-center gap-1.5 truncate">
+                                <Phone className="w-3.5 h-3.5 text-[#22C55E]" />
+                                <span className="font-mono">{c.mobile}</span>
+                              </div>
+                            )}
+                            {c.whatsapp && (
+                              <div className="flex items-center gap-1.5 truncate">
+                                <MessageSquare className="w-3.5 h-3.5 text-[#22C55E]" />
+                                <span className="font-mono">{c.whatsapp}</span>
+                              </div>
+                            )}
+                            {c.email && (
+                              <div className="flex items-center gap-1.5 truncate sm:col-span-2">
+                                <Mail className="w-3.5 h-3.5 text-purple-600" />
+                                <a href={`mailto:${c.email}`} className="hover:underline select-all">{c.email}</a>
+                              </div>
+                            )}
+                          </div>
+
+                          {c.notes && (
+                            <p className="text-[11px] text-gray-500 bg-gray-50/50 border border-gray-100 rounded-lg p-2 leading-relaxed italic">
+                              Note: {c.notes}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0 self-start md:self-center">
+                          <button
+                            onClick={() => handleEditContactClick(index)}
+                            className="p-1.5 border border-gray-200 hover:border-[#092E20] hover:bg-emerald-50/50 hover:text-[#092E20] text-gray-400 rounded transition-colors cursor-pointer"
+                            title="Edit Contact"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteContact(index)}
+                            className="p-1.5 border border-gray-200 hover:border-red-200 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded transition-colors cursor-pointer"
+                            title="Delete Contact"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {(lead.contacts || []).length === 0 && (
+                      <div className="py-16 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-3">
+                        <Users className="w-10 h-10 text-gray-300 stroke-[1.5]" />
+                        <div>
+                          <p className="font-bold text-gray-650">No representatives registered</p>
+                          <p className="text-gray-400 text-[11px] mt-0.5">Click &quot;Add Contact&quot; to manage secondary buyer contacts for this brand.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               // QUOTATIONS HISTORICAL TAB
