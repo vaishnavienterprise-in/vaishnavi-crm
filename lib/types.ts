@@ -73,6 +73,7 @@ export interface Lead {
   callCount?: number;
   lastCallDate?: string;
   notes?: string;
+  address?: string;
 }
 
 export interface CRMTask {
@@ -123,6 +124,7 @@ export interface Note {
   createdAt: any; // Firestore Timestamp
   ownerId: string;
   updatedAt?: any; // Firestore Timestamp
+  pinned?: boolean;
 }
 
 export interface CallLog {

@@ -21,6 +21,7 @@ import {
 } from 'firebase/firestore';
 import {
   X,
+  Pin,
   Phone,
   MessageSquare,
   Mail,
@@ -313,6 +314,16 @@ export default function LeadDetailModal({ isOpen, onClose, lead, onUpdateLead, o
     const wa = lead.whatsapp || lead.phone;
     return wa ? wa.replace(/[^0-9+]/g, '') : '';
   }, [lead]);
+
+  // Compute sorted progress logs with pinned messages prioritizing visual timeline placement
+  const sortedNotes = useMemo(() => {
+    if (!notes) return [];
+    return [...notes].sort((a, b) => {
+      const aPinned = a.pinned ? 1 : 0;
+      const bPinned = b.pinned ? 1 : 0;
+      return bPinned - aPinned; // Pinned (1) comes before unpinned (0)
+    });
+  }, [notes]);
 
   // Download PDF catalog invoice for any quotation
   const handleDownloadQuotationPDF = (q: Quotation) => {
@@ -779,6 +790,19 @@ Sales Desk [Vaishnavi Enterprise]
     }
   };
 
+  const handleTogglePinNote = async (noteId: string, currentPinned?: boolean) => {
+    if (!lead) return;
+    try {
+      const docRef = doc(db, 'leads', lead.id, 'notes', noteId);
+      await updateDoc(docRef, {
+        pinned: !currentPinned,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error('Error toggling pin:', err);
+    }
+  };
+
   // Save followup schedule reminder
   const handleSaveFollowup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -915,49 +939,148 @@ Sales Desk [Vaishnavi Enterprise]
         {/* Workspace Panels split */}
         <div className="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-gray-150">
           
-          {/* Left panel (6 columns): CRM Lead Card & Direct Actions */}
-          <div className="md:col-span-5 p-6 bg-gray-50/50 space-y-6">
+          {/* Left panel (5 columns): Section 1: Company Profile & Outreach */}
+          <div className="md:col-span-5 p-4 md:p-6 bg-gray-50/50 space-y-6 overflow-y-auto">
             
-            {/* Status overview */}
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-gray-400 uppercase font-bold">Pipeline Status</span>
-                <p className="text-sm font-bold text-[#092E20] mt-0.5">{lead.status}</p>
+            {/* 1. COMPANY PROFILE CARD */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 className="font-bold text-[#092E20] text-xs font-display uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="p-1 bg-emerald-50 text-[#092E20] rounded-lg text-xs leading-none">🏢</span>
+                  <span>Section 1: Company Profile</span>
+                </h3>
+                <span className="text-[10px] text-gray-400 font-mono">ESTD: {createdDateStr}</span>
               </div>
-              <span className={`text-[10px] uppercase font-bold py-1 px-2 rounded-full border ${
-                lead.priority === 'Hot' ? 'bg-red-100 border-red-200 text-red-800' : 'bg-gray-100 text-gray-700 border-gray-200'
-              }`}>
-                Priority: {lead.priority}
-              </span>
+
+              <div className="space-y-3 text-xs font-sans">
+                {/* Brand & GST Section */}
+                <div className="grid grid-cols-2 gap-3 pb-3 border-b border-gray-100/50">
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block tracking-wider">Company Brand</span>
+                    <p className="font-extrabold text-gray-800 mt-0.5 leading-snug">{lead.companyName || '-'}</p>
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block tracking-wider">GST No.</span>
+                    <p className="font-bold text-gray-700 mt-0.5 font-mono select-all bg-gray-50 px-1 py-0.5 rounded border border-gray-150 inline-block text-[11px]">{lead.gstNumber || 'Unregistered'}</p>
+                  </div>
+                </div>
+
+                {/* Website & Industry Section */}
+                <div className="grid grid-cols-2 gap-3 pb-3 border-b border-gray-100/50">
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block tracking-wider">Website Domain</span>
+                    {lead.website ? (
+                      <a href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`} target="_blank" rel="noopener noreferrer" className="text-emerald-600 hover:underline flex items-center gap-1 font-medium mt-0.5 truncate max-w-[130px]" title={lead.website}>
+                        <Globe className="w-3 h-3 text-emerald-700 shrink-0" />
+                        <span>{lead.website}</span>
+                      </a>
+                    ) : (
+                      <p className="text-gray-400 mt-0.5">Not set</p>
+                    )}
+                  </div>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block tracking-wider">Industry Vertical</span>
+                    <p className="font-bold text-gray-800 mt-0.5">{lead.industry || '-'}</p>
+                  </div>
+                </div>
+
+                {/* Geographical Placement */}
+                <div className="pb-3 border-b border-gray-100/50">
+                  <span className="text-[9px] uppercase font-bold text-gray-400 block tracking-wider">Registered Address</span>
+                  <p className="text-gray-650 leading-relaxed mt-0.5 font-medium">{lead.address || 'Address details empty'}</p>
+                  {lead.city && (
+                    <span className="inline-block mt-1 bg-emerald-50 text-emerald-800 text-[10px] font-bold px-2 py-0.1 border border-emerald-150 rounded">
+                      City: {lead.city}{lead.state ? `, ${lead.state}` : ''}
+                    </span>
+                  )}
+                </div>
+
+                {/* Complete CRM Performance Stats (Req 7 & 8) */}
+                <div className="bg-emerald-50/15 p-3 rounded-xl border border-[#22C55E]/10 space-y-2">
+                  <span className="text-[9px] text-[#092E20] font-black uppercase tracking-wider block">Company Analytics Profile</span>
+                  <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+                    <div className="bg-white p-1 rounded-lg border border-gray-100">
+                      <span className="font-black text-xs text-[#092E20] font-mono block">{lead.callCount || 0}</span>
+                      <span className="text-[8.5px] text-gray-400 block mt-0.5 font-bold">Total Calls</span>
+                    </div>
+                    <div className="bg-white p-1 rounded-lg border border-gray-100">
+                      <span className="font-black text-xs text-indigo-700 font-mono block">{followups.length}</span>
+                      <span className="text-[8.5px] text-gray-400 block mt-0.5 font-bold">Follow Ups</span>
+                    </div>
+                    <div className="bg-white p-1 rounded-lg border border-gray-100">
+                      <span className="font-black text-xs text-purple-700 font-mono block">{linkedQuotations.length}</span>
+                      <span className="text-[8.5px] text-gray-400 block mt-0.5 font-bold">Quotations</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center text-[9px] text-gray-400 border-t border-gray-100 pt-2 font-mono">
+                    <span>CREATED: {createdDateStr}</span>
+                    <span>LAST CALL: {lead.lastCallDate ? new Date(lead.lastCallDate).toLocaleDateString('en-IN') : 'Never'}</span>
+                  </div>
+                </div>
+
+                {/* Primary Requirement */}
+                {lead.requirement && (
+                  <div className="bg-gray-50/60 p-3 rounded-lg border border-gray-200">
+                    <span className="text-[9px] uppercase font-bold text-gray-400 block tracking-wider">Manufacturing Requirements</span>
+                    <p className="text-gray-700 mt-1 whitespace-pre-wrap leading-relaxed max-h-[100px] overflow-y-auto font-mono text-[11px] select-all">{lead.requirement}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Profiles Action Bars */}
+              <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-100 select-none">
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="py-1.5 px-2 bg-gray-50 border border-gray-200 hover:border-[#092E20] text-gray-600 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition active:scale-95"
+                >
+                  <Edit2 className="w-3.5 h-3.5 text-gray-500" />
+                  <span>Edit Profile</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (window.confirm('Are you sure you want to delete this lead?')) {
+                      if (onDeleteLead) {
+                        await onDeleteLead(lead.id);
+                        onClose();
+                      }
+                    }
+                  }}
+                  className="py-1.5 px-2 bg-red-50/50 border border-red-100 hover:bg-red-500 hover:text-white text-red-500 rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition active:scale-95"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Lead</span>
+                </button>
+              </div>
             </div>
 
-            {/* Direct Interaction Center */}
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Outbound Interaction Center</h4>
+            {/* DIRECT OUTREACH HUB */}
+            <div className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-3.5">
+              <span className="text-xs font-bold text-[#092E20] uppercase tracking-wider block">Direct Outreach Hub</span>
               
               <div className="grid grid-cols-2 gap-2">
-                {/* One click dialer */}
+                {/* Phone Call dialer */}
                 <button
                   onClick={handleCallDial}
                   disabled={!lead.phone}
-                  className="py-3 px-4 bg-[#092E20] hover:bg-[#0F5132] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer disabled:opacity-40"
+                  className="py-2.5 px-3 bg-[#092E20] text-white hover:bg-[#072418] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 transition"
                 >
                   <Phone className="w-4 h-4 text-[#22C55E]" />
                   <span>Dial Call ({lead.callCount || 0})</span>
                 </button>
 
-                {/* Email template */}
+                {/* Email dispatcher */}
                 <button
                   onClick={handleSendEmail}
                   disabled={!lead.email}
-                  className="py-3 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-black rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer disabled:opacity-40"
+                  className="py-2.5 px-3 bg-gray-50 hover:bg-gray-100 text-gray-700 hover:text-black rounded-xl text-xs font-bold border border-gray-200 flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 transition"
                 >
                   <Mail className="w-4 h-4 text-purple-600" />
                   <span>Draft Email</span>
                 </button>
               </div>
 
-              {/* Move to Saturday Follow-up Action */}
+              {/* Saturday Planning Action Column */}
               <button
                 onClick={async () => {
                   try {
@@ -978,771 +1101,538 @@ Sales Desk [Vaishnavi Enterprise]
                     console.error('Error shifting day to Saturday followups', e);
                   }
                 }}
-                className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-transform active:scale-95 cursor-pointer shadow-xs"
+                className="w-full py-2 px-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer"
               >
-                <Calendar className="w-4 h-4 text-white" />
+                <Calendar className="w-4 h-4" />
                 <span>Move to Saturday Follow-up</span>
               </button>
 
-              {/* Dynamic template whatsapp senders */}
-              <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase block">Outbound WhatsApp Templates</span>
-                <div className="grid grid-cols-1 gap-2">
+              {/* Company Profile Brochure Share (Catalog Trigger) */}
+              <button
+                type="button"
+                onClick={() => handleSendProfile('WhatsApp')}
+                className="w-full py-2 px-3 bg-emerald-650 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold border border-emerald-600 flex items-center justify-center gap-1.5 cursor-pointer select-none"
+              >
+                <Download className="w-4 h-4" />
+                <span>Trigger Mobile Catalog PDF</span>
+              </button>
+
+              {/* Outbound Quick WhatsApp pitching template buttons */}
+              <div className="bg-gray-50 border border-gray-150 p-3.5 rounded-xl space-y-2">
+                <span className="text-[10px] uppercase font-bold text-gray-400 block tracking-wider">Share pitch templates</span>
+                <div className="grid grid-cols-1 gap-1.5">
                   <button
                     onClick={() => handleSendWhatsApp(1)}
                     disabled={!lead.whatsapp && !lead.phone}
-                    className="w-full text-left p-2.5 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg text-xs font-semibold text-[#092E20] transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-40"
+                    className="w-full text-left p-2 bg-white hover:bg-emerald-50/30 border border-gray-200 hover:border-[#22C55E]/40 rounded-lg text-xs font-bold text-gray-700 hover:text-[#092E20] transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-40"
                   >
                     <MessageSquare className="w-4 h-4 shrink-0 text-[#22C55E]" />
-                    <span className="truncate">T1: Introduction Pitch Brochure</span>
+                    <span className="truncate">T1: Intro pitch brochure booklet</span>
                   </button>
                   <button
                     onClick={() => handleSendWhatsApp(2)}
                     disabled={!lead.whatsapp && !lead.phone}
-                    className="w-full text-left p-2.5 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg text-xs font-semibold text-[#092E20] transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-40"
+                    className="w-full text-left p-2 bg-white hover:bg-emerald-50/30 border border-gray-200 hover:border-[#22C55E]/40 rounded-lg text-xs font-bold text-gray-700 hover:text-[#092E20] transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-40"
                   >
                     <MessageSquare className="w-4 h-4 shrink-0 text-[#22C55E]" />
                     <span className="truncate">T2: Standard Follow-Up Check</span>
                   </button>
                 </div>
               </div>
-
-              {/* Company Profile PDF Brochure Share */}
-              <div className="bg-white rounded-xl border border-gray-200 p-3 space-y-2">
-                <span className="text-[10px] font-bold text-gray-400 uppercase block">Send Catalog / Company Profile</span>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => handleSendProfile('WhatsApp')}
-                    className="p-2 bg-gray-100 hover:bg-green-100 border border-gray-200 font-bold text-[10px] text-gray-700 rounded-lg cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 text-[#22C55E]" />
-                    <span>via WhatsApp</span>
-                  </button>
-                  <button
-                    onClick={() => handleSendProfile('Email')}
-                    className="p-2 bg-gray-100 hover:bg-purple-100 border border-gray-200 font-bold text-[10px] text-gray-700 rounded-lg cursor-pointer flex items-center justify-center gap-1.5"
-                  >
-                    <Mail className="w-3.5 h-3.5 text-purple-600" />
-                    <span>via Email</span>
-                  </button>
-                </div>
-                {lead.profileSentAt && (
-                  <span className="text-[9px] text-gray-400 block mt-1 font-mono">
-                    Sent method: {lead.profileSentMethod} on {lead.profileSentAt.seconds ? new Date(lead.profileSentAt.seconds * 1000).toLocaleDateString('en-IN') : String(lead.profileSentAt)}
-                  </span>
-                )}
-              </div>
-
-              {/* Direct Profile Management Controls */}
-              <div className="grid grid-cols-2 gap-2.5 pt-2.5 border-t border-gray-200/50">
-                <button
-                  type="button"
-                  onClick={() => setIsEditModalOpen(true)}
-                  className="py-2 px-3 border border-[#092E20] hover:bg-gray-100 text-[#092E20] rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  <span>Edit Profile</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (window.confirm('Are you sure you want to delete this lead?')) {
-                      if (onDeleteLead) {
-                        await onDeleteLead(lead.id);
-                        onClose();
-                      }
-                    }
-                  }}
-                  className="py-2 px-3 border border-red-500 hover:bg-red-50 text-red-500 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete Lead</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Structured Specifications Info */}
-            <div className="bg-white p-4.5 rounded-xl border border-gray-200 shadow-xs space-y-3">
-              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Lead Profile Specifications</span>
-              <div className="space-y-2.5 text-xs">
-                {/* Customer and Company */}
-                <div className="grid grid-cols-2 gap-2 border-b border-gray-100 pb-2">
-                  <div>
-                    <span className="text-gray-400 block text-[9.5px] uppercase font-bold">Customer Name</span>
-                    <p className="font-semibold text-gray-800">{lead.customerName || '-'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-400 block text-[9.5px] uppercase font-bold">Company / Brand</span>
-                    <p className="font-semibold text-gray-800">{lead.companyName || '-'}</p>
-                  </div>
-                </div>
-
-                {/* Contact numbers with index mapping */}
-                <div className="border-b border-gray-100 pb-2">
-                  <span className="text-gray-400 block text-[9.5px] uppercase font-bold mb-1">Registered Phone(s)</span>
-                  <div className="space-y-1 font-mono text-gray-700">
-                    <div className="flex items-center gap-1.5">
-                      <Phone className="w-3 h-3 text-[#22C55E]" />
-                      <span>{lead.phone || '-'}</span>
-                      <span className="text-[8px] bg-green-50 text-[#092E20] px-1 py-0.2 rounded font-sans font-bold">Primary</span>
-                    </div>
-                    {lead.phones && lead.phones.slice(1).map((ph, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5 pl-4.5 text-[11px] text-gray-600">
-                        <span>{ph}</span>
-                        <span className="text-[8px] bg-gray-100 text-gray-500 px-1 py-0.2 rounded font-sans">Phone {idx + 2}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Email(s) */}
-                <div className="border-b border-gray-100 pb-2">
-                  <span className="text-gray-404 block text-[9.5px] uppercase font-bold mb-1">Registered Email(s)</span>
-                  <div className="space-y-1 text-gray-700">
-                    {lead.email ? (
-                      <div className="flex items-center gap-1.5">
-                        <Mail className="w-3 h-3 text-purple-600" />
-                        <span className="truncate select-all">{lead.email}</span>
-                        <span className="text-[8px] bg-purple-50 text-purple-700 px-1 py-0.2 rounded font-bold">Primary</span>
-                      </div>
-                    ) : (
-                      <p className="text-gray-400 italic text-[11px]">No email defined</p>
-                    )}
-                    {lead.emails && lead.emails.slice(1).map((em, idx) => (
-                      <div key={idx} className="flex items-center gap-1.5 pl-4.5 text-[11px] text-gray-655 font-semibold">
-                        <span className="truncate select-all">{em}</span>
-                        <span className="text-[8px] bg-gray-100 text-gray-500 px-1 py-0.2 rounded">Email {idx + 2}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Location mapping */}
-                <div className="grid grid-cols-2 gap-2 border-b border-gray-100 pb-2">
-                  <div>
-                    <span className="text-gray-404 block text-[9.5px] uppercase font-bold">City / State</span>
-                    <p className="font-semibold text-gray-800">{lead.city || '-'} ({lead.state || 'IN'})</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-404 block text-[9.5px] uppercase font-bold">Industry Vertical</span>
-                    <p className="font-semibold text-gray-800">{lead.industry || '-'}</p>
-                  </div>
-                </div>
-
-                {/* Additional metadata */}
-                <div className="grid grid-cols-2 gap-2 border-b border-gray-100 pb-2">
-                  <div>
-                    <span className="text-gray-404 block text-[9.5px] uppercase font-bold">Lead Source</span>
-                    <p className="font-semibold font-mono text-gray-850 text-[11px]">{lead.leadSource || '-'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-404 block text-[9.5px] uppercase font-bold">Created Date</span>
-                    <p className="font-semibold text-[#092E20]">{createdDateStr}</p>
-                  </div>
-                </div>
-
-                {/* Company GST & Website */}
-                <div className="grid grid-cols-2 gap-2 border-b border-gray-100 pb-2">
-                  <div>
-                    <span className="text-gray-404 block text-[9.5px] uppercase font-bold">GST Number</span>
-                    <p className="font-semibold font-mono text-gray-800 text-[10.5px]">{lead.gstNumber || 'No GST Registered'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-404 block text-[9.5px] uppercase font-bold">Company Website</span>
-                    {lead.website ? (
-                      <a
-                        href={lead.website.startsWith('http') ? lead.website : `https://${lead.website}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-semibold text-emerald-700 hover:underline truncate block"
-                      >
-                        {lead.website}
-                      </a>
-                    ) : (
-                      <p className="font-semibold text-gray-400">-</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Workspace progress context parameters */}
-                <div className="grid grid-cols-2 gap-2 border-b border-gray-100 pb-2">
-                  <div>
-                    <span className="text-gray-450 block text-[9.5px] uppercase font-bold">Assigned Day</span>
-                    <p className="font-semibold text-amber-600 uppercase tracking-wider">{lead.dayAssignment || 'Monday'}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-405 block text-[9.5px] uppercase font-bold">Last Called</span>
-                    <p className="font-semibold text-gray-700">
-                      {lead.lastCalledAt ? 'Yes' : 'Never'} ({lead.callCount || 0} times)
-                    </p>
-                  </div>
-                </div>
-
-                {/* Real Lead Notes field in Lead Document */}
-                {lead.notes && (
-                  <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-100/60 mt-2">
-                    <span className="text-amber-800 block text-[9px] uppercase font-black tracking-wider">Internal Profile Notes</span>
-                    <p className="text-xs text-amber-900 mt-1 leading-relaxed whitespace-pre-wrap">
-                      {lead.notes}
-                    </p>
-                  </div>
-                )}
-
-                {lead.requirement && (
-                  <div className="border-t border-gray-100 pt-2.5">
-                    <span className="text-gray-404 block text-[9.5px] uppercase font-bold">Manufacturing Requirement</span>
-                    <p className="text-xs text-gray-700 leading-relaxed font-mono mt-0.5 whitespace-pre-wrap selection:bg-green-100 bg-gray-50/50 p-2 rounded-lg border border-gray-150">
-                      {lead.requirement}
-                    </p>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
 
-          {/* Right panel (7 columns): Subcollections timeline notes, reminders */}
-          <div className="md:col-span-7 p-6 flex flex-col h-full min-h-[400px]">
+          {/* Right panel (7 columns): Multi-Section Mobile CRM Experience */}
+          <div className="md:col-span-7 p-4 md:p-6 space-y-8 overflow-y-auto">
             
-            {/* Nav tabs inside workspace */}
-            <div className="flex border-b border-gray-250 mb-4 select-none">
-              <button
-                onClick={() => setActiveSubTab('notes')}
-                className={`py-2 px-4 text-xs font-bold border-b-2 cursor-pointer transition-all ${
-                  activeSubTab === 'notes' ? 'border-[#092E20] text-[#092E20]' : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                Progress Timeline ({notes.length})
-              </button>
-              <button
-                onClick={() => setActiveSubTab('followups')}
-                className={`py-2 px-4 text-xs font-bold border-b-2 cursor-pointer transition-all ${
-                  activeSubTab === 'followups' ? 'border-[#092E20] text-[#092E20]' : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                Reminders & Follow Ups ({followups.length})
-              </button>
-              <button
-                onClick={() => setActiveSubTab('contacts')}
-                className={`py-2 px-4 text-xs font-bold border-b-2 cursor-pointer transition-all ${
-                  activeSubTab === 'contacts' ? 'border-[#092E20] text-[#092E20]' : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                Contacts ({(lead.contacts || []).length})
-              </button>
-              <button
-                onClick={() => setActiveSubTab('quotations')}
-                className={`py-2 px-4 text-xs font-bold border-b-2 cursor-pointer transition-all ${
-                  activeSubTab === 'quotations' ? 'border-[#092E20] text-[#092E20]' : 'border-transparent text-gray-400 hover:text-gray-600'
-                }`}
-              >
-                Quotations ({linkedQuotations.length})
-              </button>
-            </div>
-
-            {/* Active Sub Tab contents */}
-            {activeSubTab === 'notes' ? (
-              // PROGRESS TIMELINE TAB
-              <div className="flex-1 flex flex-col h-full justify-between gap-4">
-                
-                {/* Note creation / edit Input */}
-                <form onSubmit={editingNoteId ? handleUpdateNote : handleSaveNote} className="flex gap-2 shrink-0">
-                  <input
-                    type="text"
-                    value={editingNoteId ? editingNoteText : newNoteText}
-                    onChange={(e) => editingNoteId ? setEditingNoteText(e.target.value) : setNewNoteText(e.target.value)}
-                    id="new-note-textarea"
-                    placeholder={editingNoteId ? "Edit activity log entry..." : "Enter activity log or comment text..."}
-                    className="flex-1 bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-xl py-2 px-3.5 text-xs outline-hidden font-medium"
-                  />
+            {/* 2. CONTACT DIRECTORY */}
+            <div id="section-contacts" className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h3 className="font-bold text-[#092E20] text-xs font-display uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="p-1 bg-emerald-50 text-[#092E20] rounded-lg text-xs leading-none">👥</span>
+                  <span>Section 2: Contact Directory ({(lead.contacts || []).length})</span>
+                </h3>
+                {!showContactForm && (
                   <button
-                    type="submit"
-                    disabled={submitting || (editingNoteId ? !editingNoteText.trim() : !newNoteText.trim())}
-                    className="p-2.5 bg-[#092E20] hover:bg-[#0F5132] text-white rounded-xl transition-all cursor-pointer disabled:opacity-40 font-bold text-xs"
+                    onClick={() => {
+                      setEditingContactIndex(null);
+                      setContactForm({
+                        name: '',
+                        designation: '',
+                        department: '',
+                        mobile: '',
+                        whatsapp: '',
+                        email: '',
+                        notes: '',
+                      });
+                      setShowContactForm(true);
+                    }}
+                    className="py-2 px-3 bg-[#092E20] text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer transition active:scale-95"
                   >
-                    {editingNoteId ? 'Update' : <Send className="w-4 h-4 text-white" />}
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add</span>
                   </button>
-                  {editingNoteId && (
+                )}
+              </div>
+
+              {showContactForm ? (
+                /* Contact registration form optimized with clean styling */
+                <form onSubmit={handleSaveContact} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={contactForm.name}
+                        className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs outline-hidden focus:border-[#092E20]"
+                        placeholder="Ramesh Kumar"
+                        onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Designation</label>
+                      <input
+                        type="text"
+                        value={contactForm.designation}
+                        className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs outline-hidden focus:border-[#092E20]"
+                        placeholder="Purchase Manager"
+                        onChange={(e) => setContactForm(prev => ({ ...prev, designation: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Mobile Phone *</label>
+                      <input
+                        type="text"
+                        value={contactForm.mobile}
+                        className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs outline-hidden focus:border-[#092E20]"
+                        placeholder="9876543210"
+                        onChange={(e) => setContactForm(prev => ({ ...prev, mobile: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">WhatsApp</label>
+                      <input
+                        type="text"
+                        value={contactForm.whatsapp}
+                        className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs outline-hidden focus:border-[#092E20]"
+                        placeholder="9876543210"
+                        onChange={(e) => setContactForm(prev => ({ ...prev, whatsapp: e.target.value }))}
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={contactForm.email}
+                        className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-xs outline-hidden focus:border-[#092E20]"
+                        placeholder="ramesh@company.com"
+                        onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 text-xs pt-2 border-t border-gray-200/50">
                     <button
                       type="button"
-                      onClick={() => {
-                        setEditingNoteId(null);
-                        setEditingNoteText('');
-                      }}
-                      className="px-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl transition-all cursor-pointer text-[11px] font-bold"
+                      onClick={() => setShowContactForm(false)}
+                      className="py-2 px-3 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold cursor-pointer transition active:scale-95"
                     >
                       Cancel
                     </button>
-                  )}
-                </form>
-
-                {/* Timeline display */}
-                <div className="flex-1 overflow-y-auto space-y-4 max-h-[35vh] pr-1">
-                  {notes.map(n => (
-                    <div key={n.id} className="p-3 bg-gray-50 rounded-xl relative border border-gray-150 group/note hover:bg-gray-100/50 transition-all">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-[10px] text-[#092E20]">{n.user}</span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-gray-400 font-medium">
-                            {n.date} &bull; {n.time} {n.updatedAt && '(edited)'}
-                          </span>
-                          
-                          {/* Note Actions */}
-                          <div className="flex items-center gap-1 opacity-40 hover:opacity-100 group-hover/note:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => {
-                                setEditingNoteId(n.id);
-                                setEditingNoteText(n.note);
-                              }}
-                              className="p-1 hover:bg-gray-200 rounded text-gray-500 hover:text-blue-650 transition-colors cursor-pointer"
-                              title="Edit progressive note"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteNote(n.id)}
-                              className="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-red-500 transition-colors cursor-pointer"
-                              title="Delete progressive note"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-gray-700 mt-1.5 leading-relaxed whitespace-pre-wrap">{n.note}</p>
-                    </div>
-                  ))}
-                  {notes.length === 0 && (
-                    <div className="py-12 text-center text-gray-350 text-xs">
-                      No progressive timeline logs captured. Add notes above to track deal updates.
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : activeSubTab === 'followups' ? (
-              // REMINDERS & FOLLOW UPS SUBCOLLECTION
-              <div className="flex-1 flex flex-col h-full justify-between gap-4">
-                
-                {/* Followup scheduler */}
-                <form onSubmit={handleSaveFollowup} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 shrink-0">
-                  <div className="flex items-center gap-1 pb-1.5 border-b border-gray-200">
-                    <Calendar className="w-4 h-4 text-[#092E20]" />
-                    <span className="text-xs font-bold text-gray-700">Schedule Outbound Follow-Up Reminder</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Date</label>
-                      <input
-                        type="date"
-                        required
-                        value={newFollowup.date}
-                        className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden"
-                        onChange={(e) => setNewFollowup(prev => ({ ...prev, date: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Time</label>
-                      <input
-                        type="time"
-                        required
-                        value={newFollowup.time}
-                        className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden"
-                        onChange={(e) => setNewFollowup(prev => ({ ...prev, time: e.target.value }))}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Priority</label>
-                      <select
-                        value={newFollowup.priority}
-                        className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden cursor-pointer"
-                        onChange={(e) => setNewFollowup(prev => ({ ...prev, priority: e.target.value as any }))}
-                      >
-                        <option value="Hot">Hot</option>
-                        <option value="Warm">Warm</option>
-                        <option value="Cold">Cold</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Action</label>
-                      <select
-                        value={newFollowup.actionType}
-                        className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden cursor-pointer"
-                        onChange={(e) => setNewFollowup(prev => ({ ...prev, actionType: e.target.value as any }))}
-                      >
-                        <option value="Call">Call</option>
-                        <option value="WhatsApp">WhatsApp</option>
-                        <option value="Email">Email</option>
-                        <option value="Meeting">Meeting</option>
-                        <option value="Quotation">Quotation</option>
-                        <option value="Reminder">Reminder</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter description agenda (e.g., Send updated silver PP label quote)..."
-                      className="w-full bg-white border border-gray-200 rounded p-2 text-xs outline-hidden"
-                      value={newFollowup.notes}
-                      onChange={(e) => setNewFollowup(prev => ({ ...prev, notes: e.target.value }))}
-                    />
-                  </div>
-
-                  <div className="flex justify-end">
                     <button
                       type="submit"
-                      disabled={submitting || !newFollowup.notes.trim()}
-                      className="py-1.5 px-4 bg-[#092E20] hover:bg-[#0F5132] text-white rounded text-xs font-bold cursor-pointer select-none disabled:opacity-40 flex items-center gap-1"
+                      disabled={submitting || !contactForm.name.trim()}
+                      className="py-2 px-4 bg-[#092E20] text-white rounded-xl font-bold cursor-pointer disabled:opacity-40 transition active:scale-95"
                     >
-                      <Plus className="w-3.5 h-3.5 text-[#22C55E]" />
-                      <span>Attach Schedule</span>
+                      Save Representative
                     </button>
                   </div>
                 </form>
-
-                {/* Followups List */}
-                <div className="flex-1 overflow-y-auto space-y-3 max-h-[25vh] pr-1">
-                  {followups.map(f => (
-                    <div key={f.id} className="p-3 bg-white border border-gray-200/60 rounded-xl shadow-xs text-xs space-y-2 flex justify-between items-start">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-[#092E20] uppercase bg-green-50 px-1.5 py-0.5 rounded text-[9.5px]">
-                            {f.actionType}
-                          </span>
-                          <span className="text-[10px] text-gray-400 font-semibold">{f.date} &bull; {f.time}</span>
+              ) : (
+                /* Card elements with direct contact CTA links (Call, Email, WhatsApp) */
+                <div className="space-y-3.5">
+                  {(lead.contacts || []).map((c, idx) => (
+                    <div key={idx} className="p-4 bg-gray-50/65 rounded-xl border border-gray-150 relative space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-extrabold text-gray-800 text-sm leading-tight">{c.name}</p>
+                          <p className="text-[10px] text-gray-400 font-semibold mt-0.5">{c.designation || 'Representative'} {c.department ? `(${c.department})` : ''}</p>
                         </div>
-                        <p className="text-gray-700 leading-relaxed">{f.notes}</p>
-                      </div>
-                      <span className={`text-[9px] uppercase px-1.5 font-bold rounded ${
-                        f.priority === 'Hot' ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-500'
-                      }`}>
-                        {f.priority}
-                      </span>
-                    </div>
-                  ))}
-                  {followups.length === 0 && (
-                    <div className="py-12 text-center text-gray-350 text-xs">
-                      No automated reminder checkpoints scheduled. Set reminders above.
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : activeSubTab === 'contacts' ? (
-              // CONTACT DIRECTORY TAB
-              <div className="flex-1 flex flex-col h-full justify-between gap-4">
-                <div className="flex justify-between items-center shrink-0 border-b border-gray-150 pb-2">
-                  <span className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-emerald-700" />
-                    <span>Contact Directory</span>
-                  </span>
-                  
-                  {!showContactForm && (
-                    <button
-                      onClick={() => {
-                        setEditingContactIndex(null);
-                        setContactForm({
-                          name: '',
-                          designation: '',
-                          department: '',
-                          mobile: '',
-                          whatsapp: '',
-                          email: '',
-                          notes: '',
-                        });
-                        setShowContactForm(true);
-                      }}
-                      className="py-1 px-2.5 bg-[#092E20] hover:bg-[#0F5132] text-white rounded text-xs font-bold flex items-center gap-1 cursor-pointer transition-transform active:scale-95 select-none"
-                    >
-                      <Plus className="w-3.5 h-3.5 text-[#22C55E]" />
-                      <span>Add Contact</span>
-                    </button>
-                  )}
-                </div>
-
-                {showContactForm ? (
-                  /* Create / Edit Contact Form */
-                  <form onSubmit={handleSaveContact} className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 shrink-0 overflow-y-auto max-h-[45vh]">
-                    <div className="flex items-center gap-1.5 pb-1.5 border-b border-gray-200">
-                      <Users className="w-4 h-4 text-[#092E20]" />
-                      <span className="text-xs font-bold text-gray-700">
-                        {editingContactIndex !== null ? 'Modify Contact Representative' : 'Register New Contact Representative'}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Name *</label>
-                        <input
-                          type="text"
-                          required
-                          value={contactForm.name}
-                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
-                          placeholder="e.g. Ramesh Kumar"
-                          onChange={(e) => setContactForm(prev => ({ ...prev, name: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Designation</label>
-                        <input
-                          type="text"
-                          value={contactForm.designation}
-                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
-                          placeholder="e.g. Purchase Manager"
-                          onChange={(e) => setContactForm(prev => ({ ...prev, designation: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Department</label>
-                        <input
-                          type="text"
-                          value={contactForm.department}
-                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
-                          placeholder="e.g. Procurement / Accounts"
-                          onChange={(e) => setContactForm(prev => ({ ...prev, department: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Email</label>
-                        <input
-                          type="email"
-                          value={contactForm.email}
-                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
-                          placeholder="ramesh@company.com"
-                          onChange={(e) => setContactForm(prev => ({ ...prev, email: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Mobile Phone No.</label>
-                        <input
-                          type="text"
-                          value={contactForm.mobile}
-                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
-                          placeholder="e.g. 9876543210"
-                          onChange={(e) => setContactForm(prev => ({ ...prev, mobile: e.target.value }))}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">WhatsApp No.</label>
-                        <input
-                          type="text"
-                          value={contactForm.whatsapp}
-                          className="w-full bg-white border border-gray-200 rounded p-1.5 text-xs outline-hidden focus:border-[#092E20]"
-                          placeholder="e.g. 9876543210"
-                          onChange={(e) => setContactForm(prev => ({ ...prev, whatsapp: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 uppercase mb-0.5">Representative Notes</label>
-                      <input
-                        type="text"
-                        value={contactForm.notes}
-                        className="w-full bg-white border border-gray-200 rounded p-2 text-xs outline-hidden focus:border-[#092E20]"
-                        placeholder="e.g. Usually handles release orders, call only after 2 PM..."
-                        onChange={(e) => setContactForm(prev => ({ ...prev, notes: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2 text-xs pt-1">
-                      <button
-                        type="button"
-                        onClick={() => setShowContactForm(false)}
-                        className="py-1.5 px-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded font-bold cursor-pointer transition"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={submitting || !contactForm.name.trim()}
-                        className="py-1.5 px-4 bg-[#092E20] hover:bg-[#0F5132] text-white rounded font-bold cursor-pointer disabled:opacity-40 transition"
-                      >
-                        {editingContactIndex !== null ? 'Save Changes' : 'Register Representative'}
-                      </button>
-                    </div>
-                  </form>
-                ) : (
-                  /* Contacts List View */
-                  <div className="flex-1 overflow-y-auto space-y-3 max-h-[42vh] pr-1 mt-1">
-                    {(lead.contacts || []).map((c, index) => (
-                      <div key={index} className="p-3 bg-white border border-gray-200/70 hover:border-emerald-250 rounded-xl shadow-xs text-xs flex justify-between items-start gap-4 transition-all group">
-                        <div className="space-y-1.5 flex-1 min-w-0">
-                          <div>
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="font-bold text-[#092E20] text-sm truncate">{c.name}</span>
-                              {c.designation && (
-                                <span className="bg-emerald-50 text-[#092E20] text-[9.5px] font-bold px-1.5 py-0.5 rounded">
-                                  {c.designation}
-                                </span>
-                              )}
-                              {c.department && (
-                                <span className="bg-gray-50 text-gray-500 text-[9.5px] px-1.5 py-0.5 rounded border border-gray-100">
-                                  {c.department}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-gray-600">
-                            {c.mobile && (
-                              <div className="flex items-center gap-1.5 truncate">
-                                <Phone className="w-3.5 h-3.5 text-[#22C55E]" />
-                                <span className="font-mono">{c.mobile}</span>
-                              </div>
-                            )}
-                            {c.whatsapp && (
-                              <div className="flex items-center gap-1.5 truncate">
-                                <MessageSquare className="w-3.5 h-3.5 text-[#22C55E]" />
-                                <span className="font-mono">{c.whatsapp}</span>
-                              </div>
-                            )}
-                            {c.email && (
-                              <div className="flex items-center gap-1.5 truncate sm:col-span-2">
-                                <Mail className="w-3.5 h-3.5 text-purple-600" />
-                                <a href={`mailto:${c.email}`} className="hover:underline select-all">{c.email}</a>
-                              </div>
-                            )}
-                          </div>
-
-                          {c.notes && (
-                            <p className="text-[11px] text-gray-500 bg-gray-50/50 border border-gray-100 rounded-lg p-2 leading-relaxed italic">
-                              Note: {c.notes}
-                            </p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0 self-start md:self-center">
+                        <div className="flex items-center gap-1">
                           <button
-                            onClick={() => handleEditContactClick(index)}
-                            className="p-1.5 border border-gray-200 hover:border-[#092E20] hover:bg-emerald-50/50 hover:text-[#092E20] text-gray-400 rounded transition-colors cursor-pointer"
-                            title="Edit Contact"
+                            onClick={() => handleEditContactClick(idx)}
+                            className="p-1.5 border border-gray-200 hover:border-[#092E20] bg-white text-gray-500 rounded-lg"
+                            title="Edit"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDeleteContact(index)}
-                            className="p-1.5 border border-gray-200 hover:border-red-200 hover:bg-red-50 text-gray-400 hover:text-red-600 rounded transition-colors cursor-pointer"
-                            title="Delete Contact"
+                            onClick={() => handleDeleteContact(idx)}
+                            className="p-1.5 border border-gray-200 hover:border-red-200 bg-white text-red-400 hover:text-red-655 rounded-lg"
+                            title="Delete"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
-                    ))}
 
-                    {(lead.contacts || []).length === 0 && (
-                      <div className="py-16 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-3">
-                        <Users className="w-10 h-10 text-gray-300 stroke-[1.5]" />
-                        <div>
-                          <p className="font-bold text-gray-650">No representatives registered</p>
-                          <p className="text-gray-400 text-[11px] mt-0.5">Click &quot;Add Contact&quot; to manage secondary buyer contacts for this brand.</p>
-                        </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {/* CALL button */}
+                        {c.mobile ? (
+                          <a
+                            href={`tel:${c.mobile}`}
+                            className="p-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-150 text-[#092E20] rounded-xl text-center font-bold text-[10.5px] cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <Phone className="w-3 h-3 text-[#22C55E]" />
+                            <span>Call</span>
+                          </a>
+                        ) : (
+                          <span className="p-2 bg-gray-100 text-gray-400 rounded-xl text-center text-[10.5px] opacity-40">No Phone</span>
+                        )}
+
+                        {/* WHATSAPP button */}
+                        {c.whatsapp || c.mobile ? (
+                          <a
+                            href={`https://wa.me/91${c.whatsapp || c.mobile}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 bg-green-50 hover:bg-green-100 border border-green-150 text-[#092E20] rounded-xl text-center font-bold text-[10.5px] cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <MessageSquare className="w-3 h-3 text-[#22C55E]" />
+                            <span>WhatsApp</span>
+                          </a>
+                        ) : (
+                          <span className="p-2 bg-gray-100 text-gray-400 rounded-xl text-center text-[10.5px] opacity-40">No WA</span>
+                        )}
+
+                        {/* EMAIL button */}
+                        {c.email ? (
+                          <a
+                            href={`mailto:${c.email}`}
+                            className="p-2 bg-purple-50 hover:bg-purple-100 border border-purple-150 text-purple-700 rounded-xl text-center font-bold text-[10.5px] cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            <Mail className="w-3 h-3 text-purple-600" />
+                            <span>Email</span>
+                          </a>
+                        ) : (
+                          <span className="p-2 bg-gray-100 text-gray-400 rounded-xl text-center text-[10.5px] opacity-40">No Email</span>
+                        )}
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ) : (
-              // QUOTATIONS HISTORICAL TAB
-              <div className="flex-1 flex flex-col h-full justify-between gap-4">
-                <div className="flex justify-between items-center shrink-0 border-b border-gray-150 pb-2">
-                  <span className="text-xs font-bold text-gray-405 uppercase tracking-widest flex items-center gap-1">
-                    <Notebook className="w-4 h-4 text-[#22C55E]" />
-                    <span>Past Buyer Estimations</span>
-                  </span>
-                  <span className="text-[10px] bg-[#092E20]/5 text-[#092E20] px-2 py-0.5 rounded-full font-bold">
-                    {linkedQuotations.length} quotes total
-                  </span>
-                </div>
-
-                <div className="flex-1 overflow-y-auto space-y-2.5 max-h-[42vh] pr-1 mt-1">
-                  {linkedQuotations.map(q => {
-                    const qDate = q.createdAt
-                      ? (typeof q.createdAt.toDate === 'function' ? q.createdAt.toDate().toLocaleDateString('en-IN') : new Date(q.createdAt).toLocaleDateString('en-IN'))
-                      : '-';
-                    
-                    const productsToLoad = q.products && q.products.length > 0 ? q.products : (
-                      (q as any).items ? (q as any).items.map((i: any) => ({
-                        labelName: i.labelName || '',
-                        quantity: Number(i.quantity || 0)
-                      })) : [{ labelName: q.product || 'Labels', quantity: q.quantity }]
-                    );
-
-                    const subTotalSum = q.subtotal || productsToLoad.reduce((sum: number, item: any) => sum + (Number((item as any).amount) || 0), 0);
-                    const grandTotalSum = q.grandTotal || (subTotalSum * 1.18);
-
-                    return (
-                      <div 
-                        key={q.id} 
-                        className="p-3 bg-gray-50/50 hover:bg-gray-50 border border-gray-200/80 hover:border-emerald-250 rounded-xl shadow-xs transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-3 cursor-pointer group"
-                        onClick={() => setSelectedQuotation(q)}
-                      >
-                        <div className="space-y-1 flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-xs text-gray-800 font-mono group-hover:text-emerald-700">
-                              {q.quotationNumber || 'VE-QUOTE-DRAFT'}
-                            </span>
-                            <span className="text-[9.5px] text-gray-400 font-semibold">{qDate}</span>
-                          </div>
-                          <p className="text-[11px] text-gray-500 font-medium truncate">
-                            Subject: {q.subject || 'Label estimates request'}
-                          </p>
-                          <div className="flex flex-wrap gap-1 items-center">
-                            {productsToLoad.slice(0, 2).map((item: any, id: number) => (
-                              <span key={id} className="text-[8.5px] bg-white border border-gray-200 text-gray-600 px-1.5 py-0.5 rounded truncate max-w-[150px]">
-                                {item.labelName || 'Labels'} ({item.quantity?.toLocaleString('en-IN')} pcs)
-                              </span>
-                            ))}
-                            {productsToLoad.length > 2 && (
-                              <span className="text-[8.5px] bg-gray-100 text-gray-400 px-1 py-0.5 rounded">
-                                +{productsToLoad.length - 2} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-3 shrink-0 self-end md:self-center">
-                          <div className="text-right">
-                            <span className="text-[8.5px] text-gray-400 block font-bold leading-none">GRAND TOTAL</span>
-                            <span className="font-bold text-[12px] text-[#092E20] font-mono block mt-1">
-                              Rs. {grandTotalSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </div>
-                          
-                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              onClick={() => handleDownloadQuotationPDF(q)}
-                              className="p-1 px-2 border border-blue-200 hover:bg-blue-50 text-blue-600 rounded text-xs font-bold transition-all"
-                              title="Download professional invoice PDF"
-                            >
-                              PDF
-                            </button>
-                            <button
-                              onClick={() => handleDeleteQuotation(q.id)}
-                              className="p-1 px-2 border border-red-200 hover:bg-red-50 text-red-500 rounded text-xs font-bold transition-all"
-                              title="Permanently remove estimate"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-
-                  {linkedQuotations.length === 0 && (
-                    <div className="py-16 text-center text-gray-350 text-xs">
-                      No matching historical quotations found for this buyer company.
+                    </div>
+                  ))}
+                  {(lead.contacts || []).length === 0 && (
+                    <div className="py-8 text-center text-gray-400 text-xs flex flex-col items-center justify-center gap-1">
+                      <Users className="w-8 h-8 text-gray-300 stroke-[1.5]" />
+                      <p className="font-semibold text-gray-650 text-[11px]">No contact representatives registered</p>
                     </div>
                   )}
                 </div>
+              )}
+            </div>
+
+            {/* 3. PROGRESS NOTES TIMELINE */}
+            <div id="section-notes" className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+              <div className="border-b border-gray-100 pb-3 flex justify-between items-center">
+                <h3 className="font-bold text-[#092E20] text-xs font-display uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="p-1 bg-emerald-50 text-[#092E20] rounded-lg text-xs leading-none">📝</span>
+                  <span>Section 3: Notes & Progress Timeline ({notes.length})</span>
+                </h3>
               </div>
-            )}
-          </div>
+
+              {/* Note creation / edit Input with optimized mobile form styling */}
+              <form onSubmit={editingNoteId ? handleUpdateNote : handleSaveNote} className="flex gap-2">
+                <input
+                  type="text"
+                  required
+                  value={editingNoteId ? editingNoteText : newNoteText}
+                  onChange={(e) => editingNoteId ? setEditingNoteText(e.target.value) : setNewNoteText(e.target.value)}
+                  id="new-note-textarea"
+                  placeholder={editingNoteId ? "Edit activity log entry..." : "Type custom progress update note..."}
+                  className="flex-1 bg-gray-50 border border-gray-200 focus:border-[#092E20] focus:ring-1 focus:ring-[#092E20] rounded-xl py-2.5 px-3.5 text-xs outline-hidden font-medium"
+                />
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-4 bg-[#092E20] hover:bg-[#072418] text-white rounded-xl transition cursor-pointer disabled:opacity-40 font-bold text-xs shrink-0 flex items-center justify-center"
+                >
+                  {editingNoteId ? 'Update' : <Send className="w-3.5 h-3.5 text-white" />}
+                </button>
+                {editingNoteId && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingNoteId(null);
+                      setEditingNoteText('');
+                    }}
+                    className="px-3 bg-gray-250 hover:bg-gray-300 text-gray-705 rounded-xl transition text-[11px] font-bold"
+                  >
+                    Cancel
+                  </button>
+                )}
+              </form>
+
+              {/* Notes List Scrollbox */}
+              <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                {sortedNotes.map(n => (
+                  <div key={n.id} className={`p-4 rounded-xl relative border transition-all flex flex-col justify-between ${
+                    n.pinned 
+                      ? 'bg-amber-50/70 border-amber-200 hover:bg-amber-50' 
+                      : 'bg-gray-50/60 border-gray-150 hover:bg-gray-100/30'
+                  }`}>
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5">
+                        {n.pinned && <Pin className="w-3 h-3 text-amber-600 fill-amber-600 shrink-0" />}
+                        <span className="font-bold text-[11px] text-[#092E20] leading-none shrink-0 truncate max-w-[140px]" title={n.user}>{n.user}</span>
+                        <span className="text-[9px] text-gray-400 font-semibold font-mono">
+                          {n.date} &bull; {n.time} {n.updatedAt && '(edited)'}
+                        </span>
+                      </div>
+                      
+                      {/* Note Pin / Edit / Delete Actions */}
+                      <div className="flex items-center gap-1 font-semibold text-xs text-gray-400">
+                        <button
+                          onClick={() => handleTogglePinNote(n.id, !n.pinned)}
+                          className={`p-1 rounded cursor-pointer ${n.pinned ? 'text-amber-600 bg-amber-100/50' : 'hover:bg-gray-200'}`}
+                          title={n.pinned ? "Remove Pin" : "Pin message to top"}
+                        >
+                          <Pin className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingNoteId(n.id);
+                            setEditingNoteText(n.note);
+                          }}
+                          className="p-1 hover:bg-gray-200 rounded hover:text-emerald-750"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteNote(n.id)}
+                          className="p-1 hover:bg-gray-200 rounded hover:text-red-500"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-700 mt-2 whitespace-pre-wrap leading-relaxed select-text font-medium">{n.note}</p>
+                  </div>
+                ))}
+
+                {sortedNotes.length === 0 && (
+                  <div className="py-8 text-center text-gray-400 text-xs">
+                    No timeline notes captured yet. Add notes above to record updates.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 4. ACTIONS, FOLLOW UPS & SCHEDULED REMINDERS */}
+            <div id="section-followups" className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h3 className="font-bold text-[#092E20] text-xs font-display uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="p-1 bg-emerald-50 text-[#092E20] rounded-lg text-xs leading-none">📅</span>
+                  <span>Section 4: Follow Ups & Reminders ({followups.length})</span>
+                </h3>
+              </div>
+
+              {/* Followup scheduler */}
+              <form onSubmit={handleSaveFollowup} className="p-4 bg-gray-50/50 rounded-xl border border-gray-200 space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={newFollowup.date}
+                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs outline-hidden focus:border-[#092E20]"
+                      onChange={(e) => setNewFollowup(prev => ({ ...prev, date: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Time</label>
+                    <input
+                      type="time"
+                      required
+                      value={newFollowup.time}
+                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs outline-hidden focus:border-[#092E20]"
+                      onChange={(e) => setNewFollowup(prev => ({ ...prev, time: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Priority</label>
+                    <select
+                      value={newFollowup.priority}
+                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs outline-hidden cursor-pointer"
+                      onChange={(e) => setNewFollowup(prev => ({ ...prev, priority: e.target.value as any }))}
+                    >
+                      <option value="Hot">🔥 Hot</option>
+                      <option value="Warm">⚡ Warm</option>
+                      <option value="Cold">❄️ Cold</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Action Type</label>
+                    <select
+                      value={newFollowup.actionType}
+                      className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs outline-hidden cursor-pointer"
+                      onChange={(e) => setNewFollowup(prev => ({ ...prev, actionType: e.target.value as any }))}
+                    >
+                      <option value="Call">Call</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Email">Email</option>
+                      <option value="Meeting">Meeting</option>
+                      <option value="Quotation">Quotation</option>
+                      <option value="Reminder">Reminder</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Task Description / Agenda</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g., Share metal label price quotation..."
+                    className="w-full bg-white border border-gray-200 rounded-lg p-2 text-xs outline-hidden focus:border-[#092E20]"
+                    value={newFollowup.notes}
+                    onChange={(e) => setNewFollowup(prev => ({ ...prev, notes: e.target.value }))}
+                  />
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    disabled={submitting || !newFollowup.notes.trim()}
+                    className="py-1.5 px-4 bg-[#092E20] hover:bg-[#072418] text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-40 flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Attach Followup</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* Followups list Display */}
+              <div className="space-y-3 max-h-[220px] overflow-y-auto pr-1">
+                {followups.map(f => (
+                  <div key={f.id} className="p-3 bg-white border border-gray-200/60 rounded-xl shadow-xs text-xs space-y-2 flex justify-between items-start">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-[#092E20] uppercase bg-green-50 px-1.5 py-0.5 rounded text-[9px]">
+                          {f.actionType}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-semibold">{f.date} &bull; {f.time}</span>
+                      </div>
+                      <p className="text-gray-700 font-medium leading-relaxed">{f.notes}</p>
+                    </div>
+                    <span className={`text-[9px] uppercase px-1.5 py-0.5 font-bold rounded-lg ${
+                      f.priority === 'Hot' ? 'bg-red-50 text-red-700 border border-red-100' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      {f.priority}
+                    </span>
+                  </div>
+                ))}
+                {followups.length === 0 && (
+                  <div className="py-8 text-center text-gray-400 text-xs">
+                    No scheduled followups or reminders for this buyer.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 5. LINKED BUYER ESTIMATIONS & QUOTATIONS */}
+            <div id="section-quotations" className="bg-white p-5 rounded-2xl border border-gray-200/80 shadow-xs space-y-4">
+              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h3 className="font-bold text-[#092E20] text-xs font-display uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="p-1 bg-emerald-50 text-[#092E20] rounded-lg text-xs leading-none">📊</span>
+                  <span>Section 5: Linked Quotations ({linkedQuotations.length})</span>
+                </h3>
+              </div>
+
+              <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
+                {linkedQuotations.map(q => {
+                  const qDate = q.createdAt
+                    ? (typeof q.createdAt.toDate === 'function' ? q.createdAt.toDate().toLocaleDateString('en-IN') : new Date(q.createdAt).toLocaleDateString('en-IN'))
+                    : '-';
+                  
+                  const productsToLoad = q.products && q.products.length > 0 ? q.products : (
+                    (q as any).items ? (q as any).items.map((i: any) => ({
+                      labelName: i.labelName || '',
+                      quantity: Number(i.quantity || 0)
+                    })) : [{ labelName: q.product || 'Labels', quantity: q.quantity }]
+                  );
+
+                  const subTotalSum = q.subtotal || productsToLoad.reduce((sum: number, item: any) => sum + (Number((item as any).amount) || 0), 0);
+                  const grandTotalSum = q.grandTotal || (subTotalSum * 1.18);
+
+                  return (
+                    <div 
+                      key={q.id} 
+                      className="p-3 bg-gray-50/50 hover:bg-gray-50 border border-gray-250 hover:border-emerald-250 hover:border-[#092E20] rounded-xl shadow-xs transition-all flex flex-col md:flex-row justify-between items-start md:items-center gap-3 cursor-pointer group"
+                      onClick={() => setSelectedQuotation(q)}
+                    >
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-xs text-[#092E20] font-mono">
+                            {q.quotationNumber || 'VE-QUOTE-DRAFT'}
+                          </span>
+                          <span className="text-[10px] text-gray-400 font-semibold">{qDate}</span>
+                        </div>
+                        <p className="text-[11px] text-gray-500 font-medium truncate">
+                          Subject: {q.subject || 'Label estimates request'}
+                        </p>
+                        <div className="flex flex-wrap gap-1 items-center mt-1">
+                          {productsToLoad.slice(0, 2).map((item: any, id: number) => (
+                            <span key={id} className="text-[9px] bg-white border border-gray-150 text-gray-600 px-1.5 py-0.5 rounded-lg truncate max-w-[150px]">
+                              {item.labelName || 'Labels'} ({item.quantity?.toLocaleString('en-IN')} pcs)
+                            </span>
+                          ))}
+                          {productsToLoad.length > 2 && (
+                            <span className="text-[9px] bg-gray-100 text-gray-400 px-1 py-0.5 rounded">
+                              +{productsToLoad.length - 2} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3 shrink-0 self-end md:self-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="text-right">
+                          <span className="text-[8.5px] text-gray-400 block font-bold leading-none">GRAND TOTAL</span>
+                          <span className="font-black text-xs text-[#092E20] font-mono block mt-1">
+                            Rs. {grandTotalSum.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDownloadQuotationPDF(q)}
+                            className="p-1 px-2 border border-blue-200 hover:bg-blue-50 text-blue-600 rounded-lg text-xs font-bold transition"
+                            title="Download PDF"
+                          >
+                            PDF
+                          </button>
+                          <button
+                            onClick={() => handleDeleteQuotation(q.id)}
+                            className="p-1 px-2 border border-red-200 hover:bg-red-50 text-red-500 rounded-lg text-xs font-bold transition"
+                            title="Delete"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {linkedQuotations.length === 0 && (
+                  <div className="py-8 text-center text-gray-400 text-xs">
+                    No matching estimates discovered for this company.
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>   </div>
         </div>
-      </div>
 
       {isEditModalOpen && (
         <LeadFormModal
